@@ -49,6 +49,7 @@ export interface Child {
   school_name: string | null;
   school_location_id: string | null;
   home_location_id: string | null;
+  photo_url: string | null;
   notes: string | null;
 }
 

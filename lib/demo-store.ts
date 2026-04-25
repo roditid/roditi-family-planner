@@ -34,9 +34,9 @@ const LOCATIONS: Location[] = [
 ];
 
 const CHILDREN: Child[] = [
-  { id: 'c-adam', household_id: HOUSEHOLD_ID, name: 'Adam', color: '#6BA3C5', school_name: 'Tichon Hadash',  school_location_id: 'loc-school', home_location_id: 'loc-home', notes: null },
-  { id: 'c-liam', household_id: HOUSEHOLD_ID, name: 'Liam', color: '#7FA87D', school_name: 'Tichon Hadash',  school_location_id: 'loc-school', home_location_id: 'loc-home', notes: null },
-  { id: 'c-yali', household_id: HOUSEHOLD_ID, name: 'Yali', color: '#E89070', school_name: 'Gan Shoshanim',  school_location_id: 'loc-gan',    home_location_id: 'loc-home', notes: null },
+  { id: 'c-adam', household_id: HOUSEHOLD_ID, name: 'Adam', color: '#6BA3C5', school_name: 'Tichon Hadash',  school_location_id: 'loc-school', home_location_id: 'loc-home', notes: null, photo_url: null },
+  { id: 'c-liam', household_id: HOUSEHOLD_ID, name: 'Liam', color: '#7FA87D', school_name: 'Tichon Hadash',  school_location_id: 'loc-school', home_location_id: 'loc-home', notes: null, photo_url: null },
+  { id: 'c-yali', household_id: HOUSEHOLD_ID, name: 'Yali', color: '#E89070', school_name: 'Gan Shoshanim',  school_location_id: 'loc-gan',    home_location_id: 'loc-home', notes: null, photo_url: null },
 ];
 
 const ACTIVITIES: Activity[] = [

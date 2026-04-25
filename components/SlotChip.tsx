@@ -5,6 +5,7 @@ import type { SlotView } from '@/lib/types';
 import { mapsHref } from '@/lib/maps';
 import { prettyTime } from '@/lib/week';
 import { tellable } from '@/lib/phones';
+import ChildAvatar from './ChildAvatar';
 
 interface Props {
   slot: SlotView;
@@ -80,15 +81,9 @@ export default function SlotChip({ slot, currentUserId, density = 'roomy' }: Pro
         />
         <div className="pl-2.5 pr-2 py-2 space-y-1">
           <div className="font-display text-base tabular-nums leading-tight">{prettyTime(slot.pickup_time)}</div>
-          <div
-            className="text-[10px] font-bold uppercase tracking-[0.08em] px-1.5 py-0.5 rounded inline-block"
-            style={
-              ownership === 'mine'
-                ? { background: 'rgba(255,255,255,0.18)', color: 'inherit' }
-                : { background: slot.child.color, color: '#fff' }
-            }
-          >
-            {slot.child.name}
+          <div className="flex items-center gap-1.5">
+            <ChildAvatar child={slot.child} size={22} />
+            <span className={`text-[10px] font-bold uppercase tracking-[0.08em] ${ownership === 'mine' ? 'opacity-90' : 'text-ink-700/70'}`}>{slot.child.name}</span>
           </div>
           <div className={`text-[13px] font-medium leading-tight truncate ${ownership === 'mine' ? 'text-cream-50' : 'text-ink-900'}`}>
             {slot.title}

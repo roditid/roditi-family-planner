@@ -3,6 +3,7 @@ import type { SlotView } from '@/lib/types';
 import { type CalView, daysForView, isoDay, isToday, prettyDay, shortDay, dayNumber } from '@/lib/week';
 import CalendarToolbar from './CalendarToolbar';
 import SlotChip from './SlotChip';
+import SwipeArea from './SwipeArea';
 
 interface Props {
   view: CalView;
@@ -39,10 +40,12 @@ export default function CalendarView({ view, anchor, slots, currentUserId, onlyM
     <div className="space-y-3">
       <CalendarToolbar view={view} anchor={anchor} rangeLabel={rangeLabel} />
 
-      {view === 'schedule' && <ScheduleLayout days={days} byDay={byDay} currentUserId={currentUserId} />}
-      {view === 'day'      && <ScheduleLayout days={days} byDay={byDay} currentUserId={currentUserId} />}
-      {view === '3day'     && <ColumnsLayout days={days} byDay={byDay} currentUserId={currentUserId} cols={3} />}
-      {view === 'week'     && <ColumnsLayout days={days} byDay={byDay} currentUserId={currentUserId} cols={7} />}
+      <SwipeArea view={view} anchor={anchor}>
+        {view === 'schedule' && <ScheduleLayout days={days} byDay={byDay} currentUserId={currentUserId} />}
+        {view === 'day'      && <ScheduleLayout days={days} byDay={byDay} currentUserId={currentUserId} />}
+        {view === '3day'     && <ColumnsLayout days={days} byDay={byDay} currentUserId={currentUserId} cols={3} />}
+        {view === 'week'     && <ColumnsLayout days={days} byDay={byDay} currentUserId={currentUserId} cols={7} />}
+      </SwipeArea>
 
       {filtered.length === 0 && (
         <div className="card p-8 text-center mt-4">
