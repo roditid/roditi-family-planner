@@ -1,5 +1,5 @@
 /**
- * Seed Pickup Planner with the Bergman family demo data.
+ * Seed Pickup Planner with the Roditi family demo data.
  *
  * Fully idempotent: wipes rows belonging to the demo household, then
  * re-inserts. Safe to run repeatedly during setup.
@@ -28,7 +28,7 @@ if (!url || !serviceKey || url.includes('localhost:54321')) {
 const sb = createClient(url, serviceKey, { auth: { persistSession: false } });
 
 const DEMO_PASSWORD = 'PickupPlanner!2026';
-const HOUSEHOLD_NAME = 'Bergman Family';
+const HOUSEHOLD_NAME = 'Roditi Family';
 
 type SeedUser = {
   email: string;
@@ -39,8 +39,8 @@ type SeedUser = {
 };
 
 const USERS: SeedUser[] = [
-  { email: 'paula@example.com', full_name: 'Paula Bergman', role: 'admin' },
-  { email: 'daniel@example.com', full_name: 'Daniel Bergman', role: 'admin' },
+  { email: 'paula@example.com', full_name: 'Paula Roditi', role: 'admin' },
+  { email: 'daniel@example.com', full_name: 'Daniel Roditi', role: 'admin' },
   { email: 'savta.rachel@example.com', full_name: 'Savta Rachel', role: 'helper', helper_kind: 'grandparent', home: 'Ramat Aviv, Tel Aviv' },
   { email: 'saba.yossi@example.com',   full_name: 'Saba Yossi',   role: 'helper', helper_kind: 'grandparent', home: 'Ramat Gan' },
   { email: 'savta.miri@example.com',   full_name: 'Savta Miri',   role: 'helper', helper_kind: 'grandparent', home: 'Herzliya' },

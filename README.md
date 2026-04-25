@@ -1,6 +1,6 @@
 # Pickup Planner
 
-A warm, mobile-first web app that helps the Bergman family split kid pickups across grandparents and a nanny. Grandparents see the week, tap **Claim**, and get an email reminder the morning of — with the child, the time, and the exact pickup/drop-off location.
+A warm, mobile-first web app that helps the Roditi family split kid pickups across grandparents and a nanny. Grandparents see the week, tap **Claim**, and get an email reminder the morning of — with the child, the time, and the exact pickup/drop-off location.
 
 **Family:** Paula & Daniel (admins), Adam / Liam / Yali (kids), 4 grandparents + 1 nanny.
 
@@ -89,7 +89,7 @@ Idempotency: each slot has a `reminder_sent_at` flag; the job skips already-noti
 ### ✅ Complete
 - Next.js 14 App Router + Tailwind + Supabase Auth (Google OAuth + email magic link)
 - Full schema (12 tables), household-scoped RLS, auto-create-profile trigger
-- Seeded demo household: Bergman family with realistic week, colors per child, claimed + unclaimed states, one deliberate missing-location fallback
+- Seeded demo household: Roditi family with realistic week, colors per child, claimed + unclaimed states, one deliberate missing-location fallback
 - Landing → Login → My pickups → Available week → Admin overview flow
 - Slot cards with large type, pickup + drop-off, Maps link, Claim/Unclaim (one tap)
 - Child filter chips + week-forward/back navigation
@@ -145,7 +145,7 @@ components/
 supabase/migrations/
   0001_init.sql                   schema
   0002_rls.sql                    household-scoped RLS
-scripts/seed.ts                   Bergman family demo data
+scripts/seed.ts                   Roditi family demo data
 vercel.json                       cron config
 ```
 

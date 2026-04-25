@@ -17,7 +17,7 @@ export default async function CalendarSettings() {
       last_sync_status: 'ok — 14 events, 9 slots (demo)',
       last_sync_error: null,
     };
-    owner = { full_name: 'Paula Bergman', email: 'paula@example.com' };
+    owner = { full_name: 'Paula Roditi', email: 'paula@example.com' };
   } else {
     const sb = supabaseServer();
     const { data } = await sb

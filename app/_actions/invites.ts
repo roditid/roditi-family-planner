@@ -52,7 +52,7 @@ export async function sendInvitesForHousehold(householdId: string) {
       ``,
       `(You can bookmark this — it's your link any time.)`,
       ``,
-      `— The Bergman family`,
+      `— The Roditi family`,
     ].join('\n');
     const r = await emailProvider.send({ to: h.email, subject, body });
     sent.push({ to: h.email, ok: !r.error });

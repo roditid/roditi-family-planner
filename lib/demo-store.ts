@@ -10,13 +10,13 @@ import type { SlotView, PickupSlot, Profile, Location, Child, Activity } from '.
 // ---------------------------------------------------------------------------
 // Seed
 // ---------------------------------------------------------------------------
-const HOUSEHOLD_ID = 'house-bergman';
+const HOUSEHOLD_ID = 'house-roditi';
 
 type DemoProfile = Profile & { magic_token: string };
 
 const USERS: DemoProfile[] = [
-  { id: 'u-paula',   magic_token: 'tok-paula-7k2x9',   full_name: 'Paula Bergman',  email: 'paula@example.com',   phone_number: null, home_address: 'Tel Aviv',  home_lat: null, home_lng: null, role: 'admin',  helper_kind: null,            color: null, email_enabled: true,  sms_enabled: false },
-  { id: 'u-daniel',  magic_token: 'tok-daniel-3q8m1',  full_name: 'Daniel Bergman', email: 'daniel@example.com',  phone_number: null, home_address: 'Tel Aviv',  home_lat: null, home_lng: null, role: 'admin',  helper_kind: null,            color: null, email_enabled: true,  sms_enabled: false },
+  { id: 'u-paula',   magic_token: 'tok-paula-7k2x9',   full_name: 'Paula Roditi',  email: 'paula@example.com',   phone_number: null, home_address: 'Tel Aviv',  home_lat: null, home_lng: null, role: 'admin',  helper_kind: null,            color: null, email_enabled: true,  sms_enabled: false },
+  { id: 'u-daniel',  magic_token: 'tok-daniel-3q8m1',  full_name: 'Daniel Roditi', email: 'daniel@example.com',  phone_number: null, home_address: 'Tel Aviv',  home_lat: null, home_lng: null, role: 'admin',  helper_kind: null,            color: null, email_enabled: true,  sms_enabled: false },
   { id: 'u-rachel',  magic_token: 'tok-rachel-4v6n2',  full_name: 'Savta Rachel',   email: 'rachel@example.com',  phone_number: null, home_address: 'Ramat Aviv',home_lat: null, home_lng: null, role: 'helper', helper_kind: 'grandparent',   color: null, email_enabled: true,  sms_enabled: false },
   { id: 'u-yossi',   magic_token: 'tok-yossi-9p5j8',   full_name: 'Saba Yossi',     email: 'yossi@example.com',   phone_number: null, home_address: 'Ramat Gan', home_lat: null, home_lng: null, role: 'helper', helper_kind: 'grandparent',   color: null, email_enabled: true,  sms_enabled: false },
   { id: 'u-miri',    magic_token: 'tok-miri-2c4d6',    full_name: 'Savta Miri',     email: 'miri@example.com',    phone_number: null, home_address: 'Herzliya',  home_lat: null, home_lng: null, role: 'helper', helper_kind: 'grandparent',   color: null, email_enabled: true,  sms_enabled: false },
@@ -114,7 +114,7 @@ let assignments: { slot_id: string; user_id: string }[] = SEEDS
 // ---------------------------------------------------------------------------
 export const DEMO = {
   householdId: HOUSEHOLD_ID,
-  householdName: 'Bergman Family',
+  householdName: 'Roditi Family',
   timezone: 'Asia/Jerusalem',
 };
 
