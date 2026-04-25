@@ -34,11 +34,8 @@ export default async function Landing() {
 
         <div className="mt-10 space-y-3">
           <Link href={signInHref} className="btn-primary w-full text-lg py-4">
-            {demoMode() ? 'Open the demo' : 'Sign in with Google'}
+            {demoMode() ? 'Open the demo' : 'Sign in'}
           </Link>
-          {!demoMode() && (
-            <Link href="/login?mode=email" className="btn-soft w-full text-base py-3">or use email</Link>
-          )}
         </div>
 
         <div className="mt-14 space-y-4 text-sm text-ink-700/75">
