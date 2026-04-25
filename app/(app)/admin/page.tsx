@@ -103,7 +103,12 @@ export default async function AdminOverview({ searchParams }: { searchParams: { 
             {slots.length === 0 ? 'no pickups in the next 7 days' : `${slots.length} pickup${slots.length > 1 ? 's' : ''} in the next 7 days`}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {unclaimed.length > 0 && (
+            <Link href="/admin/unassigned" className="btn-soft text-sm bg-coral-400/15 text-coral-600 hover:bg-coral-400/25 border-coral-400/30">
+              {unclaimed.length} unassigned
+            </Link>
+          )}
           <Link href="/admin/slots/new" className="btn-soft text-sm">+ New pickup</Link>
           <form action="/api/calendar/sync" method="post">
             <button className="btn-primary text-sm">↻ Sync calendar</button>

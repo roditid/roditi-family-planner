@@ -67,13 +67,16 @@ export default function CalendarView({ view, anchor, slots, currentUserId, curre
 // ─────────────────────────────────────────────────────────────────────
 
 function ScheduleLayout({ days, byDay, currentUserId, currentUserPhone, currentUserName }: { days: Date[]; byDay: Map<string, SlotView[]>; currentUserId: string; currentUserPhone?: string | null; currentUserName?: string | null }) {
+  // Schedule view: only render days that actually have pickups. The list
+  // scrolls forward through the next ~4 weeks; empty Fri/Sat (Israeli weekend)
+  // and Picnic-Lag-only days collapse out so the agenda reads tight.
+  const populatedDays = days.filter((d) => (byDay.get(isoDay(d))?.length ?? 0) > 0);
   return (
     <div className="space-y-5">
-      {days.map((d) => {
+      {populatedDays.map((d) => {
         const k = isoDay(d);
         const todays = (byDay.get(k) ?? []).sort((a, b) => a.pickup_time.localeCompare(b.pickup_time));
         const today = isToday(d);
-        const empty = todays.length === 0;
         return (
           <section key={k}>
             <div className="px-1 mb-2 flex items-baseline gap-3">
@@ -81,17 +84,13 @@ function ScheduleLayout({ days, byDay, currentUserId, currentUserPhone, currentU
                 {prettyDay(d)}
               </h2>
               {today && <span className="chip bg-sage-500 text-cream-50 text-[10px] px-2 py-0.5 leading-none">today</span>}
-              {!empty && <span className="text-xs text-ink-700/45 ml-auto tabular-nums">{todays.length} pickup{todays.length === 1 ? '' : 's'}</span>}
+              <span className="text-xs text-ink-700/45 ml-auto tabular-nums">{todays.length} pickup{todays.length === 1 ? '' : 's'}</span>
             </div>
-            {empty ? (
-              <div className="rounded-xl border border-dashed border-black/10 px-4 py-3 text-sm text-ink-700/45">—</div>
-            ) : (
-              <div className="space-y-2">
-                {todays.map((s) => (
-                  <SlotChip key={s.id} slot={s} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} density="roomy" />
-                ))}
-              </div>
-            )}
+            <div className="space-y-2">
+              {todays.map((s) => (
+                <SlotChip key={s.id} slot={s} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} density="roomy" />
+              ))}
+            </div>
           </section>
         );
       })}

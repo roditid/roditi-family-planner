@@ -86,22 +86,47 @@ export function renderClaimConfirmation(slot: SlotView, helperName: string | nul
   const fmtStop = (label: string, loc: any) => {
     if (!loc) return null;
     const addr = [loc.street, loc.city].filter(Boolean).join(', ');
-    const parts = [`${label}`, loc.label];
+    const parts: string[] = [`${label}`, loc.label];
     if (addr) parts.push(addr);
-    if (loc.notes) parts.push(loc.notes);
+    // Each note fragment (hours / door code / ganenet phone) on its own line.
+    if (loc.notes) {
+      const fragments = String(loc.notes)
+        .split(/\n+|(?<=[\.\!])\s+/)
+        .map((x: string) => x.trim())
+        .filter(Boolean);
+      for (const f of fragments) parts.push(f);
+    }
     return parts.join('\n');
   };
   const pickup = fmtStop('PICK UP FROM', slot.pickup_location);
+  // Combined-sibling stops between primary's Gan and the via/destination
+  const additionalStops: string[] = [];
+  for (const k of slot.additional_children ?? []) {
+    const sl = (k as any).school_location;
+    const block = sl ? fmtStop(`THEN PICK UP ${k.name.toUpperCase()}`, sl) : null;
+    if (block) additionalStops.push(block);
+  }
+  const hasMidStops = additionalStops.length > 0 || !!slot.via_location;
   const via = slot.via_location ? fmtStop('THEN GO TO', slot.via_location) : null;
-  const dest = fmtStop(via ? 'THEN DROP OFF AT' : 'DROP OFF AT', slot.destination_location);
-  for (const s of [pickup, via, dest]) if (s) stopBlocks.push(s);
+  const dest = fmtStop(hasMidStops ? 'THEN DROP OFF AT' : 'DROP OFF AT', slot.destination_location);
+  if (pickup) stopBlocks.push(pickup);
+  for (const s of additionalStops) stopBlocks.push(s);
+  if (via) stopBlocks.push(via);
+  if (dest) stopBlocks.push(dest);
 
   const yaliInTrip = allKids.some((k) => k.name.toLowerCase() === 'yali');
 
   const lines: string[] = [];
   lines.push(`✓ You're on this pickup, ${(helperName ?? '').split(' ')[0] || 'thanks'}!`);
   lines.push('');
-  lines.push(`${kidNames} — ${slot.title}`);
+  // When the title is itself the route ("Liam → Adam → Yali → Home") the
+  // separate kid-arrow line just repeats it, so skip the redundancy.
+  const titleIsRoute = slot.title.toLowerCase().includes('home');
+  if (titleIsRoute) {
+    lines.push(slot.title);
+  } else {
+    lines.push(`${kidNames} — ${slot.title}`);
+  }
   lines.push(`${dateLabel} at ${time}`);
   lines.push('');
   for (const block of stopBlocks) {

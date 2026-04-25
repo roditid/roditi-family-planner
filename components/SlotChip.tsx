@@ -178,12 +178,20 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
       className={`relative rounded-2xl border transition-all duration-150 active:scale-[0.99] cursor-pointer overflow-hidden ${surface} ${pending ? 'opacity-90' : ''}`}
     >
       <div className="p-3 sm:p-4 flex gap-3 sm:gap-4 items-stretch">
-        {/* PHOTO COLUMN — hero element. Rectangle stretches to card height.
-            For combined sibling trips, shows all kids in a vertical stack so
-            you immediately see WHO you're picking up. */}
-        <div className={`shrink-0 relative w-[38%] max-w-[180px] min-w-[120px] self-stretch ${isCombined ? 'min-h-[200px]' : 'min-h-[170px]'} flex flex-col gap-1`}>
+        {/* PHOTO COLUMN — hero element. Solo trips use one tall portrait;
+            combined sibling trips show kids side-by-side at the same height
+            so you see ALL their faces at a glance. The combined column gets
+            wider to keep individual faces readable. */}
+        <div
+          className={`shrink-0 relative self-stretch min-h-[170px] flex gap-1`}
+          style={{
+            width: isCombined ? `${Math.min(38 + (allKids.length - 1) * 14, 56)}%` : '38%',
+            maxWidth: isCombined ? `${Math.min(180 + (allKids.length - 1) * 60, 320)}px` : '180px',
+            minWidth: isCombined ? `${120 + (allKids.length - 1) * 56}px` : '120px',
+          }}
+        >
           {allKids.map((kid, i) => (
-            <div key={kid.id} className="flex-1 relative min-h-0">
+            <div key={kid.id} className="flex-1 relative min-w-0">
               <ChildAvatar
                 child={kid}
                 shape="rect"
@@ -233,18 +241,32 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
             </div>
           </div>
 
-          {/* Locations — pickup → via → destination */}
+          {/* Locations — full route. For combined sibling trips this lists
+              every Gan stop, then the destination. For activity trips it's
+              from → via → to. */}
           <div className={`text-sm space-y-1 pt-0.5 ${ownership === 'mine' ? 'opacity-95' : ''}`}>
-            {pickup ? (
-              <LocLine label="from" loc={pickup} mine={ownership === 'mine'} />
-            ) : (
-              <div className={`flex items-center gap-1.5 ${ownership === 'mine' ? 'text-cream-50/95' : 'text-coral-600'}`}>
-                <span>⚠︎</span>
-                <span className="font-medium">Pickup location not set</span>
-              </div>
-            )}
-            {via && <LocLine label="via" loc={via} mine={ownership === 'mine'} />}
-            {dest && <LocLine label="to" loc={dest} mine={ownership === 'mine'} />}
+            {(() => {
+              const stops: { label: string; loc: any }[] = [];
+              if (pickup) stops.push({ label: 'from', loc: pickup });
+              // Additional kids' Ganim are intermediate stops on a combined trip.
+              for (const k of slot.additional_children ?? []) {
+                const sl = (k as any).school_location;
+                if (sl) stops.push({ label: 'then', loc: sl });
+              }
+              if (via) stops.push({ label: 'via', loc: via });
+              if (dest) stops.push({ label: stops.length ? 'to' : 'to', loc: dest });
+              if (!pickup) {
+                return (
+                  <div className={`flex items-center gap-1.5 ${ownership === 'mine' ? 'text-cream-50/95' : 'text-coral-600'}`}>
+                    <span>⚠︎</span>
+                    <span className="font-medium">Pickup location not set</span>
+                  </div>
+                );
+              }
+              return stops.map((s, i) => (
+                <LocLine key={i} label={s.label} loc={s.loc} mine={ownership === 'mine'} />
+              ));
+            })()}
           </div>
 
           {slot.notes && (

@@ -50,14 +50,19 @@ export async function fetchSlots(
     .eq('status', 'active');
   const assignById = new Map((assigns ?? []).map((a: any) => [a.pickup_slot_id, a]));
 
-  // Collect every additional_child_id across all slots and fetch them in one go.
+  // Collect every additional_child_id across all slots and fetch them in one
+  // go, including their Gan location object so the chip can show every kid's
+  // pickup address on a combined trip.
   const extraIds = Array.from(new Set(
     slots.flatMap((s: any) => (s.additional_child_ids as string[] | null) ?? [])
   ));
-  let childById = new Map<string, Child>();
+  let childById = new Map<string, Child & { school_location: any }>();
   if (extraIds.length > 0) {
-    const { data: kids } = await sb.from('children').select('*').in('id', extraIds);
-    childById = new Map((kids ?? []).map((k: any) => [k.id, k as Child]));
+    const { data: kids } = await sb
+      .from('children')
+      .select('*, school_location:school_location_id(*)')
+      .in('id', extraIds);
+    childById = new Map((kids ?? []).map((k: any) => [k.id, k]));
   }
 
   return slots.map((s: any) => ({
@@ -65,7 +70,7 @@ export async function fetchSlots(
     assignment: assignById.get(s.id) ?? null,
     additional_children: ((s.additional_child_ids as string[] | null) ?? [])
       .map((id) => childById.get(id))
-      .filter((c): c is Child => Boolean(c)),
+      .filter((c): c is Child & { school_location: any } => Boolean(c)),
   })) as any;
 }
 

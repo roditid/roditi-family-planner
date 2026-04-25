@@ -107,10 +107,13 @@ export default function SlotDetailModal({
             </button>
           </div>
 
-          {/* Stops: pickup → via → drop-off */}
+          {/* Stops: pickup → (additional siblings' Ganim) → via → drop-off */}
           <DetailLoc label="Pick up from" loc={pickup} />
+          {(slot.additional_children ?? []).map((kid: any) => kid.school_location && (
+            <DetailLoc key={kid.id} label={`Then pick up ${kid.name}`} loc={kid.school_location} />
+          ))}
           {via && <DetailLoc label="Then go to" loc={via} />}
-          <DetailLoc label={via ? 'Then drop off at' : 'Drop off at'} loc={dest} />
+          <DetailLoc label={via || (slot.additional_children ?? []).length > 0 ? 'Then drop off at' : 'Drop off at'} loc={dest} />
 
           {/* Stroller note — only when Yali is in the trip */}
           {yaliInTrip && <StrollerNote />}
@@ -187,23 +190,47 @@ function buildSummary(slot: SlotView): string {
   })();
 
   const lines: string[] = [];
-  lines.push(`Pickup — ${kidNames}`);
-  lines.push(`${dateLabel}, ${time}${endTime ? ` (ends ${endTime})` : ''}`);
-  lines.push(`Activity: ${slot.title}`);
+  // Header: just the trip name (e.g. "Liam → Adam → Yali → Home" or "Soccer").
+  // The kid-arrow line is redundant when the title already shows the route,
+  // so we skip it for combined Gan→Home trips and only show it when the
+  // title is an activity name.
+  const titleIsRoute = slot.title.toLowerCase().includes('home');
+  lines.push(slot.title);
+  if (!titleIsRoute && allKids.length > 1) {
+    lines.push(`Kids: ${kidNames}`);
+  } else if (!titleIsRoute) {
+    lines.push(`Kid: ${slot.child.name}`);
+  }
+  lines.push(`${dateLabel} · ${time}${endTime ? ` – ends ${endTime}` : ''}`);
   lines.push('');
 
+  // Stops: every Gan in the route + via + destination
   const stops: { label: string; loc: any }[] = [];
   if (slot.pickup_location) stops.push({ label: 'PICK UP FROM', loc: slot.pickup_location });
   else if (slot.pickup_location_text) stops.push({ label: 'PICK UP FROM', loc: { label: slot.pickup_location_text } });
+  for (const k of slot.additional_children ?? []) {
+    const sl = (k as any).school_location;
+    if (sl) stops.push({ label: `THEN PICK UP ${k.name.toUpperCase()}`, loc: sl });
+  }
   if (slot.via_location) stops.push({ label: 'THEN GO TO', loc: slot.via_location });
-  if (slot.destination_location) stops.push({ label: stops.length ? 'THEN DROP OFF AT' : 'DROP OFF AT', loc: slot.destination_location });
+  if (slot.destination_location) stops.push({
+    label: stops.length > 1 ? 'THEN DROP OFF AT' : 'DROP OFF AT',
+    loc: slot.destination_location,
+  });
 
   for (const s of stops) {
     lines.push(s.label);
     lines.push(s.loc.label);
     const addr = [s.loc.street, s.loc.city].filter(Boolean).join(', ');
     if (addr) lines.push(addr);
-    if (s.loc.notes) lines.push(s.loc.notes);
+    // Each note fragment (hours, code, ganenet) on its own line.
+    if (s.loc.notes) {
+      const fragments = String(s.loc.notes)
+        .split(/\n+|(?<=[\.\!])\s+/)
+        .map((x) => x.trim())
+        .filter(Boolean);
+      for (const f of fragments) lines.push(f);
+    }
     lines.push('');
   }
 
@@ -309,13 +336,23 @@ function DetailLoc({ label, loc }: { label: string; loc: any }) {
   }
   const href = mapsHref(loc);
   const addr = [loc.street, loc.city].filter(Boolean).join(', ');
+  // Split notes on sentence breaks so each fact (hours, door code, ganenet,
+  // etc.) renders on its own line — easier to scan, easier to screenshot.
+  const noteLines: string[] = (loc.notes ?? '')
+    .split(/\n+|(?<=[\.\!])\s+/)
+    .map((s: string) => s.trim())
+    .filter(Boolean);
   return (
     <div className="rounded-xl bg-cream-200/40 p-3.5">
       <div className="text-[10px] uppercase tracking-wider text-ink-700/55 font-semibold mb-1">{label}</div>
       <div className="font-display text-lg leading-tight">{loc.label}</div>
       {addr && <div className="text-sm text-ink-700/70 mt-0.5">{addr}</div>}
-      {loc.notes && (
-        <div className="text-sm text-ink-700/80 mt-1.5 leading-relaxed">{tellable(loc.notes)}</div>
+      {noteLines.length > 0 && (
+        <ul className="text-sm text-ink-700/80 mt-1.5 leading-relaxed space-y-0.5">
+          {noteLines.map((line, i) => (
+            <li key={i}>{tellable(line)}</li>
+          ))}
+        </ul>
       )}
       {href && (
         <a href={href} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}

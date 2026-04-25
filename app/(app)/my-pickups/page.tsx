@@ -15,7 +15,14 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
   // Default to schedule view — vertical agenda is the most grandparent-friendly
   // first impression. They can switch to Day / 3-day / Week from the toolbar.
   const view: CalView = (searchParams.v as CalView) ?? 'schedule';
-  const anchor = searchParams.d ? parseISO(searchParams.d) : new Date();
+  // Schedule view always anchors on today and scrolls forward 4 weeks — past
+  // dates never show up. Other views respect ?d= for prev/next navigation
+  // but we still clamp to today so yesterday isn't accessible.
+  const requestedAnchor = searchParams.d ? parseISO(searchParams.d) : new Date();
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const anchor = view === 'schedule'
+    ? new Date()
+    : (requestedAnchor < todayStart ? new Date() : requestedAnchor);
   const onlyMine = searchParams.only === 'mine';
 
   const days = daysForView(view, anchor);

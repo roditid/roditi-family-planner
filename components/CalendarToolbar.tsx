@@ -49,19 +49,24 @@ export default function CalendarToolbar({ view, anchor, rangeLabel }: Props) {
           <ViewBtn label="Week"     active={view === 'week'}     onClick={() => setView('week')} />
         </div>
 
-        {/* Date nav */}
-        <div className="inline-flex items-center gap-0.5">
-          <button onClick={() => step(-1)} aria-label="Previous"
-            className="h-9 w-9 grid place-items-center rounded-lg hover:bg-black/5 active:scale-90 transition-transform text-lg">←</button>
-          <button onClick={goToday} className="px-3 py-1.5 rounded-lg hover:bg-black/5 active:scale-95 transition-transform text-sm font-medium">
-            Today
-          </button>
-          <button onClick={() => step(1)} aria-label="Next"
-            className="h-9 w-9 grid place-items-center rounded-lg hover:bg-black/5 active:scale-90 transition-transform text-lg">→</button>
-        </div>
+        {/* Date nav — hidden on schedule view (it's a forward-scroll list,
+            past days never reachable, anchored to today). */}
+        {view !== 'schedule' && (
+          <div className="inline-flex items-center gap-0.5">
+            <button onClick={() => step(-1)} aria-label="Previous"
+              className="h-9 w-9 grid place-items-center rounded-lg hover:bg-black/5 active:scale-90 transition-transform text-lg">←</button>
+            <button onClick={goToday} className="px-3 py-1.5 rounded-lg hover:bg-black/5 active:scale-95 transition-transform text-sm font-medium">
+              Today
+            </button>
+            <button onClick={() => step(1)} aria-label="Next"
+              className="h-9 w-9 grid place-items-center rounded-lg hover:bg-black/5 active:scale-90 transition-transform text-lg">→</button>
+          </div>
+        )}
       </div>
 
-      <div className="mt-2 font-display text-base sm:text-lg text-ink-700/80">{rangeLabel}</div>
+      {view !== 'schedule' && (
+        <div className="mt-2 font-display text-base sm:text-lg text-ink-700/80">{rangeLabel}</div>
+      )}
     </div>
   );
 }

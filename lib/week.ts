@@ -34,16 +34,21 @@ export function daysOfWeek(anchor: Date | string = new Date()) {
 }
 
 /** Days the calendar should render for a given view, anchored on `anchor`.
- *  - schedule: anchor + next 6 (vertical agenda)
+ *  - schedule: anchor + next 27 (4-week vertical agenda — long-form scroll)
  *  - day:      anchor only
  *  - 3day:     anchor + next 2 (3 columns side-by-side)
  *  - week:     anchor + next 6 (7 columns side-by-side)
+ *
+ * The schedule view spans 4 weeks so helpers can scroll forward through the
+ * month without paging. Past days are filtered out at the page level so
+ * yesterday's pickups never appear.
  */
 export function daysForView(view: CalView, anchor: Date | string = new Date()): Date[] {
   const a = typeof anchor === 'string' ? parseISO(anchor) : anchor;
   if (view === 'day') return [a];
   if (view === '3day') return [0, 1, 2].map((i) => addDays(a, i));
-  // schedule + week both span 7 days
+  if (view === 'schedule') return Array.from({ length: 28 }, (_, i) => addDays(a, i));
+  // week = 7 columns side-by-side
   return [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(a, i));
 }
 
