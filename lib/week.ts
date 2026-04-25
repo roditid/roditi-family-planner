@@ -1,6 +1,6 @@
 import { addDays, format, parseISO, startOfWeek } from 'date-fns';
 
-export type CalView = 'day' | '3day' | 'week';
+export type CalView = 'schedule' | 'day' | '3day' | 'week';
 
 export function weekStart(d: Date | string = new Date()) {
   const date = typeof d === 'string' ? parseISO(d) : d;
@@ -34,14 +34,16 @@ export function daysOfWeek(anchor: Date | string = new Date()) {
 }
 
 /** Days the calendar should render for a given view, anchored on `anchor`.
- *  - day:  just the anchor date
- *  - 3day: anchor + next 2 days
- *  - week: anchor + next 6 days (rolling 7-day window — "next week's pickups")
+ *  - schedule: anchor + next 6 (vertical agenda)
+ *  - day:      anchor only
+ *  - 3day:     anchor + next 2 (3 columns side-by-side)
+ *  - week:     anchor + next 6 (7 columns side-by-side)
  */
 export function daysForView(view: CalView, anchor: Date | string = new Date()): Date[] {
   const a = typeof anchor === 'string' ? parseISO(anchor) : anchor;
   if (view === 'day') return [a];
   if (view === '3day') return [0, 1, 2].map((i) => addDays(a, i));
+  // schedule + week both span 7 days
   return [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(a, i));
 }
 
@@ -49,7 +51,7 @@ export function daysForView(view: CalView, anchor: Date | string = new Date()): 
 export function stepForView(view: CalView): number {
   if (view === 'day') return 1;
   if (view === '3day') return 3;
-  return 7;
+  return 7; // schedule + week
 }
 
 export function prettyDay(d: Date) { return format(d, 'EEEE, MMM d'); }

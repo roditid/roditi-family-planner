@@ -12,8 +12,10 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
   const ctx = await requireAuth();
   const sb = supabaseServer();
 
-  const view: CalView = (searchParams.v as CalView) ?? 'week';
-  const anchor = searchParams.d ? parseISO(searchParams.d) : (view === 'week' ? defaultAnchor() : new Date());
+  // Default to schedule view — vertical agenda is the most grandparent-friendly
+  // first impression. They can switch to Day / 3-day / Week from the toolbar.
+  const view: CalView = (searchParams.v as CalView) ?? 'schedule';
+  const anchor = searchParams.d ? parseISO(searchParams.d) : new Date();
   const onlyMine = searchParams.only === 'mine';
 
   const days = daysForView(view, anchor);

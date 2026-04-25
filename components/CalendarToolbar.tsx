@@ -40,12 +40,13 @@ export default function CalendarToolbar({ view, anchor, rangeLabel }: Props) {
 
   return (
     <div className="sticky top-14 z-10 -mx-3 sm:-mx-5 px-3 sm:px-5 py-3 bg-cream-100/95 backdrop-blur-md border-b border-black/5">
-      <div className="flex items-center gap-2 justify-between">
+      <div className="flex items-center gap-2 justify-between flex-wrap">
         {/* View toggle */}
         <div className="inline-flex rounded-xl bg-black/[0.06] p-1 text-sm">
-          <ViewBtn label="Day"    days="1 day"   active={view === 'day'}   onClick={() => setView('day')} />
-          <ViewBtn label="3 days" days="3 days"  active={view === '3day'}  onClick={() => setView('3day')} />
-          <ViewBtn label="Week"   days="7 days"  active={view === 'week'}  onClick={() => setView('week')} />
+          <ViewBtn label="Schedule" active={view === 'schedule'} onClick={() => setView('schedule')} />
+          <ViewBtn label="Day"      active={view === 'day'}      onClick={() => setView('day')} />
+          <ViewBtn label="3-day"    active={view === '3day'}     onClick={() => setView('3day')} />
+          <ViewBtn label="Week"     active={view === 'week'}     onClick={() => setView('week')} />
         </div>
 
         {/* Date nav */}
@@ -65,12 +66,12 @@ export default function CalendarToolbar({ view, anchor, rangeLabel }: Props) {
   );
 }
 
-function ViewBtn({ label, active, onClick }: { label: string; days?: string; active: boolean; onClick: () => void }) {
+function ViewBtn({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
       className={
-        'px-3 py-1.5 rounded-lg transition-all duration-150 active:scale-95 font-medium ' +
+        'px-2.5 sm:px-3 py-1.5 rounded-lg transition-all duration-150 active:scale-95 font-medium text-[13px] sm:text-sm ' +
         (active ? 'bg-cream-50 shadow-sm text-ink-900' : 'text-ink-700/65 hover:text-ink-900')
       }
     >
