@@ -5,6 +5,8 @@ import { claimSlot } from '@/lib/demo-store';
 import { recordEvent } from '@/lib/events';
 import { DEMO } from '@/lib/demo-store';
 import { emailProvider, renderClaimConfirmation } from '@/lib/notify';
+import { updateEventTitleForClaim } from '@/lib/google/calendar';
+import { sendLiezelSummaryUpdate } from '@/lib/notify-liezel';
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   if (demoMode()) {
@@ -53,6 +55,20 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     });
   }
 
+  // Update the source Google Calendar event's title to "[Helper] …" so
+  // Paula sees the claim immediately on her own calendar. Best-effort.
+  if (slot?.source_event_id) {
+    try {
+      const { data: profile } = await sb.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
+      const firstName = (profile?.full_name ?? '').split(/[\s(]/)[0] || null;
+      if (firstName) {
+        await updateEventTitleForClaim(sb, slot.household_id, slot.source_event_id, firstName);
+      }
+    } catch (e) {
+      console.error('calendar event title update failed', e);
+    }
+  }
+
   // Send a confirmation email to the helper. Best-effort; we don't want to
   // fail the claim if the email provider is down or the helper has no email.
   try {
@@ -73,6 +89,9 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     // Log only — do not surface email errors to the claim caller.
     console.error('claim confirmation email failed', e);
   }
+
+  // Refresh Liezel's weekly summary so she has the current picture.
+  if (slot?.household_id) await sendLiezelSummaryUpdate(sb, slot.household_id);
 
   return NextResponse.json({ ok: true });
 }

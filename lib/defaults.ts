@@ -99,10 +99,23 @@ export async function generateDefaultSlots(
       );
     if (goingHome.length === 0) continue;
 
+    // Special case: when exactly 2 kids share a Gan→Home trip and one of
+    // them is Yali, she's always picked up first (her dismissal is 16:00,
+    // earliest of the three — picking her last would mean a long wait).
+    if (goingHome.length === 2) {
+      const yaliIdx = goingHome.findIndex((k) => k.name === 'Yali');
+      if (yaliIdx === 1) {
+        [goingHome[0], goingHome[1]] = [goingHome[1], goingHome[0]];
+      }
+    }
+
     const primary = goingHome[0];
     const additionalIds = goingHome.slice(1).map((k) => k.id);
     const tripStart = primary.gan_dismissal_time!; // primary = first kid in route
-    const title = goingHome.map((k) => k.name).join(' → ') + ' → Home';
+    // Title is intentionally just the destination ("Home") — the kids' names
+    // already appear on the chip via the photo stack and the small-caps kid
+    // labels, so repeating them in the title would be noise.
+    const title = 'Home';
 
     const { error } = await sb.from('pickup_slots').insert({
       household_id: householdId,

@@ -83,19 +83,14 @@ export function renderClaimConfirmation(slot: SlotView, helperName: string | nul
   })();
 
   const stopBlocks: string[] = [];
+  // Just NAME + ADDRESS per stop — no door codes, no ganenet, no hours.
+  // Those are accessible inside the app (the modal shows them); the email
+  // stays clean and screenshot-friendly.
   const fmtStop = (label: string, loc: any) => {
     if (!loc) return null;
     const addr = [loc.street, loc.city].filter(Boolean).join(', ');
     const parts: string[] = [`${label}`, loc.label];
     if (addr) parts.push(addr);
-    // Each note fragment (hours / door code / ganenet phone) on its own line.
-    if (loc.notes) {
-      const fragments = String(loc.notes)
-        .split(/\n+|(?<=[\.\!])\s+/)
-        .map((x: string) => x.trim())
-        .filter(Boolean);
-      for (const f of fragments) parts.push(f);
-    }
     return parts.join('\n');
   };
   const pickup = fmtStop('PICK UP FROM', slot.pickup_location);
@@ -119,14 +114,7 @@ export function renderClaimConfirmation(slot: SlotView, helperName: string | nul
   const lines: string[] = [];
   lines.push(`✓ You're on this pickup, ${(helperName ?? '').split(' ')[0] || 'thanks'}!`);
   lines.push('');
-  // When the title is itself the route ("Liam → Adam → Yali → Home") the
-  // separate kid-arrow line just repeats it, so skip the redundancy.
-  const titleIsRoute = slot.title.toLowerCase().includes('home');
-  if (titleIsRoute) {
-    lines.push(slot.title);
-  } else {
-    lines.push(`${kidNames} — ${slot.title}`);
-  }
+  lines.push(`${kidNames} — ${slot.title}`);
   lines.push(`${dateLabel} at ${time}`);
   lines.push('');
   for (const block of stopBlocks) {

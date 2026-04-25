@@ -190,21 +190,17 @@ function buildSummary(slot: SlotView): string {
   })();
 
   const lines: string[] = [];
-  // Header: just the trip name (e.g. "Liam → Adam → Yali → Home" or "Soccer").
-  // The kid-arrow line is redundant when the title already shows the route,
-  // so we skip it for combined Gan→Home trips and only show it when the
-  // title is an activity name.
-  const titleIsRoute = slot.title.toLowerCase().includes('home');
-  lines.push(slot.title);
-  if (!titleIsRoute && allKids.length > 1) {
-    lines.push(`Kids: ${kidNames}`);
-  } else if (!titleIsRoute) {
-    lines.push(`Kid: ${slot.child.name}`);
-  }
+  // Header: kids → title (e.g. "Liam, Adam, Yali — Home" or "Liam — Soccer").
+  // For combined Gan→Home trips this is the only place the kid names appear
+  // in the body, so keep them. For activity trips it's the same one-liner.
+  lines.push(`${kidNames} — ${slot.title}`);
   lines.push(`${dateLabel} · ${time}${endTime ? ` – ends ${endTime}` : ''}`);
   lines.push('');
 
-  // Stops: every Gan in the route + via + destination
+  // Stops: every Gan in the route + via + destination.
+  // Just NAME + ADDRESS per stop — no door codes, no ganenet phones, no
+  // hours. Helpers see those in the app when they tap into the activity;
+  // the share message stays uncluttered.
   const stops: { label: string; loc: any }[] = [];
   if (slot.pickup_location) stops.push({ label: 'PICK UP FROM', loc: slot.pickup_location });
   else if (slot.pickup_location_text) stops.push({ label: 'PICK UP FROM', loc: { label: slot.pickup_location_text } });
@@ -223,14 +219,6 @@ function buildSummary(slot: SlotView): string {
     lines.push(s.loc.label);
     const addr = [s.loc.street, s.loc.city].filter(Boolean).join(', ');
     if (addr) lines.push(addr);
-    // Each note fragment (hours, code, ganenet) on its own line.
-    if (s.loc.notes) {
-      const fragments = String(s.loc.notes)
-        .split(/\n+|(?<=[\.\!])\s+/)
-        .map((x) => x.trim())
-        .filter(Boolean);
-      for (const f of fragments) lines.push(f);
-    }
     lines.push('');
   }
 
@@ -239,11 +227,6 @@ function buildSummary(slot: SlotView): string {
     lines.push('STROLLER');
     lines.push('Yali needs a stroller. Check with Dani whether the stroller is at the Gan.');
     lines.push('');
-  }
-
-  if (slot.notes) {
-    lines.push('NOTE');
-    lines.push(slot.notes);
   }
 
   return lines.join('\n').trim();

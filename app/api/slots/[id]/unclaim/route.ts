@@ -3,6 +3,8 @@ import { supabaseServer } from '@/lib/supabase/server';
 import { demoMode, demoCurrentUser } from '@/lib/demo-session';
 import { unclaimSlot, DEMO } from '@/lib/demo-store';
 import { recordEvent } from '@/lib/events';
+import { updateEventTitleForClaim } from '@/lib/google/calendar';
+import { sendLiezelSummaryUpdate } from '@/lib/notify-liezel';
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   if (demoMode()) {
@@ -31,12 +33,29 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
   await sb.from('pickup_slots').update({ status: 'unclaimed' }).eq('id', params.id);
 
-  const { data: slot } = await sb.from('pickup_slots').select('household_id').eq('id', params.id).maybeSingle();
+  const { data: slot } = await sb
+    .from('pickup_slots')
+    .select('household_id, source_event_id')
+    .eq('id', params.id)
+    .maybeSingle();
   if (slot?.household_id) {
     await recordEvent({
       householdId: slot.household_id, slotId: params.id,
       actorUserId: user.id, subjectUserId: user.id, kind: 'released',
     });
   }
+
+  // Strip the "[Helper]" prefix from the calendar event title.
+  if (slot?.source_event_id) {
+    try {
+      await updateEventTitleForClaim(sb, slot.household_id, slot.source_event_id, null);
+    } catch (e) {
+      console.error('calendar event title revert failed', e);
+    }
+  }
+
+  // Refresh Liezel's weekly summary.
+  if (slot?.household_id) await sendLiezelSummaryUpdate(sb, slot.household_id);
+
   return NextResponse.json({ ok: true });
 }

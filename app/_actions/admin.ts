@@ -169,6 +169,14 @@ export async function reassignSlotAction(formData: FormData) {
         .update({ status: 'overridden', released_at: new Date().toISOString() })
         .eq('pickup_slot_id', slotId).eq('status', 'active');
       await sb.from('pickup_slots').update({ status: 'unclaimed' }).eq('id', slotId);
+      // Strip the "[Helper]" prefix from the source calendar event.
+      const { data: slot } = await sb.from('pickup_slots').select('source_event_id').eq('id', slotId).maybeSingle();
+      if (slot?.source_event_id) {
+        try {
+          const { updateEventTitleForClaim } = await import('@/lib/google/calendar');
+          await updateEventTitleForClaim(sb, ctx.household!.id, slot.source_event_id, null);
+        } catch (e) { console.error('calendar revert failed', e); }
+      }
     }
     await recordEvent({
       householdId: ctx.household!.id, slotId,
@@ -189,13 +197,33 @@ export async function reassignSlotAction(formData: FormData) {
         status: 'active',
       });
       await sb.from('pickup_slots').update({ status: 'claimed' }).eq('id', slotId);
+      // Update the calendar event title to "[NewHelper] Activity - Kid".
+      const { data: slot } = await sb.from('pickup_slots').select('source_event_id').eq('id', slotId).maybeSingle();
+      const { data: profile } = await sb.from('profiles').select('full_name').eq('id', userId).maybeSingle();
+      if (slot?.source_event_id && profile?.full_name) {
+        const firstName = profile.full_name.split(/[\s(]/)[0] || null;
+        if (firstName) {
+          try {
+            const { updateEventTitleForClaim } = await import('@/lib/google/calendar');
+            await updateEventTitleForClaim(sb, ctx.household!.id, slot.source_event_id, firstName);
+          } catch (e) { console.error('calendar update failed', e); }
+        }
+      }
     }
     await recordEvent({
       householdId: ctx.household!.id, slotId,
       actorUserId: ctx.user.id, subjectUserId: userId, kind: 'reassigned',
     });
   }
+  // Refresh Liezel's weekly summary so she has the latest assignments.
+  if (!demoMode()) {
+    const { sendLiezelSummaryUpdate } = await import('@/lib/notify-liezel');
+    const sb = supabaseServer();
+    await sendLiezelSummaryUpdate(sb, ctx.household!.id);
+  }
+
   revalidatePath('/admin');
+  revalidatePath('/admin/unassigned');
 }
 
 // ----------------------------------------------------------------------

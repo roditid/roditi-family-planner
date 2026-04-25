@@ -1,6 +1,24 @@
 'use client';
 
 /**
+ * Per-child framing tweaks. Yali's source photo crops tighter on her face
+ * than Adam's and Liam's, so she looks oversized in the same container.
+ * We dial her down with a small scale + repositioned origin so all three
+ * kids feel like they're shot at the same distance.
+ */
+function photoStyle(name: string): React.CSSProperties {
+  const n = (name ?? '').toLowerCase();
+  if (n === 'yali') {
+    return {
+      objectPosition: '50% 22%',
+      transform: 'scale(0.78)',
+      transformOrigin: '50% 32%',
+    };
+  }
+  return { objectPosition: '50% 28%' };
+}
+
+/**
  * Avatar for a child. Two shapes:
  *
  *   shape="circle" (default) — round, sized by `size` (px). Fallback is the
@@ -43,7 +61,7 @@ export default function ChildAvatar({ child, size = 36, ring = false, shape = 'c
             src={photo}
             alt={child.name}
             className="w-full h-full object-cover block"
-            style={{ objectPosition: '50% 28%' }}
+            style={photoStyle(child.name)}
             loading="lazy"
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
           />

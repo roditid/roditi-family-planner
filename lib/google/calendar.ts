@@ -21,9 +21,12 @@ export function oauthClient() {
   );
 }
 
+// Calendar scope is now READ + WRITE so we can update event titles when a
+// helper claims a pickup ("[Levanah] Soccer - Liam"). Re-authorization is
+// required: Paula must run /admin/calendar → Connect once after this change.
 export const GOOGLE_SCOPES = [
-  'https://www.googleapis.com/auth/calendar.readonly',
-  'https://www.googleapis.com/auth/calendar.events.readonly',
+  'https://www.googleapis.com/auth/calendar',
+  'https://www.googleapis.com/auth/calendar.events',
   'openid',
   'email',
   'profile',
@@ -55,6 +58,57 @@ async function authorizedClient(sb: SupabaseClient, householdId: string) {
   });
 
   return { client, conn };
+}
+
+/**
+ * Update a Google Calendar event's title to reflect the current claim state.
+ *
+ *   • When `helperFirstName` is provided, the event title becomes
+ *     "[Helper] Original Title" (e.g. "[Levanah] Soccer - Liam").
+ *   • When it's null, any existing "[…]" prefix is stripped, restoring the
+ *     original title.
+ *
+ * Idempotent: re-applying the same prefix is a no-op. Failures are
+ * swallowed (logged) so a calendar hiccup never breaks the claim flow.
+ */
+export async function updateEventTitleForClaim(
+  sb: SupabaseClient,
+  householdId: string,
+  sourceEventId: string,
+  helperFirstName: string | null
+) {
+  try {
+    // Look up the calendar event row so we know which Google calendar to call.
+    const { data: ev } = await sb
+      .from('calendar_events')
+      .select('calendar_id, google_event_id, title')
+      .eq('id', sourceEventId)
+      .maybeSingle();
+    if (!ev) return { ok: false, error: 'event not found' };
+
+    const baseTitle = (ev.title ?? '').replace(/^\[[^\]]+\]\s*/, '');
+    const newTitle = helperFirstName ? `[${helperFirstName}] ${baseTitle}` : baseTitle;
+
+    const { client } = await authorizedClient(sb, householdId);
+    const cal = google.calendar({ version: 'v3', auth: client });
+    await cal.events.patch({
+      calendarId: ev.calendar_id,
+      eventId: ev.google_event_id,
+      requestBody: { summary: newTitle },
+    });
+
+    // Mirror the new title onto our calendar_events row so future syncs
+    // start from the updated baseline.
+    await sb
+      .from('calendar_events')
+      .update({ title: newTitle, updated_at: new Date().toISOString() })
+      .eq('id', sourceEventId);
+
+    return { ok: true, title: newTitle };
+  } catch (e: any) {
+    console.error('updateEventTitleForClaim failed', e?.message ?? e);
+    return { ok: false, error: e?.message ?? 'unknown' };
+  }
 }
 
 /**
