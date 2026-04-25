@@ -7,10 +7,10 @@ import { format, toZonedTime } from 'date-fns-tz';
 /**
  * Cron endpoint — fires morning reminders for all households.
  *
- * Guard: requires ?secret=<CRON_SECRET>. Configure in Vercel Cron:
- *   crons: [{ path: '/api/cron/reminders?secret=...', schedule: '* * * * *' }]
- * The endpoint itself checks each household's configured send time + timezone
- * and only fires when the current minute in that timezone matches.
+ * Vercel Cron schedule (vercel.json): `30 4 * * *` = 04:30 UTC daily =
+ * 07:30 Israel time during IDT (summer). Hobby plan caps cron at once/day
+ * so we drop the per-minute timezone matching and just fire whenever the
+ * cron invokes.
  *
  * For each helper with an active assignment for today, send their reminder
  * via the configured provider. Records every attempt in notification_logs.
@@ -31,12 +31,6 @@ export async function GET(req: NextRequest) {
     const s = (settings ?? []).find((x) => x.household_id === h.id);
     const tz = s?.timezone ?? h.timezone;
     const localNow = toZonedTime(now, tz);
-    const hhmm = format(localNow, 'HH:mm', { timeZone: tz });
-    const sendAt = (s?.morning_send_time ?? '07:30').slice(0, 5);
-    if (hhmm !== sendAt) {
-      results.push({ household: h.id, skipped: `not yet (${hhmm} !== ${sendAt})` });
-      continue;
-    }
     const today = format(localNow, 'yyyy-MM-dd', { timeZone: tz });
     const tomorrow = format(new Date(localNow.getTime() + 86400_000), 'yyyy-MM-dd', { timeZone: tz });
     const slots = await fetchSlots(sb, h.id, today, tomorrow);

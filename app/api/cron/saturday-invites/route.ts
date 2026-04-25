@@ -1,12 +1,11 @@
 /**
- * Weekly invite cron — fires every minute, only sends when the current
- * minute in each household's timezone matches `weekly_invite_day` and
- * `weekly_invite_time`.
+ * Weekly invite cron — fires once per Saturday from Vercel Cron (06:00 UTC =
+ * 09:00 Israel time IDT). Sends each helper their personal magic-link URL.
  *
- * Sends each helper their personal magic-link URL.
+ * Configured in vercel.json: `0 6 * * 6` (Saturday 06:00 UTC).
  *
- * Configure in vercel.json (or any cron service):
- *   schedule: every minute, path: /api/cron/saturday-invites?secret=<CRON_SECRET>
+ * Hobby plan caps cron at once-per-day, so we always send when invoked
+ * (no per-minute time-check) — the Vercel schedule itself is the gate.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
@@ -25,36 +24,14 @@ export async function GET(req: NextRequest) {
   const results: any[] = [];
 
   if (demoMode()) {
-    const r = getReminderSettings();
-    const tz = r.timezone;
-    const local = toZonedTime(now, tz);
-    const hhmm = format(local, 'HH:mm', { timeZone: tz });
-    const dow = local.getDay(); // 0=Sun..6=Sat
-    const want = (r as any).weekly_invite_day ?? 6;
-    const wantTime = ((r as any).weekly_invite_time ?? '09:00').slice(0, 5);
-    if (dow !== want || hhmm !== wantTime) {
-      return NextResponse.json({ ran_at: now.toISOString(), skipped: `not Saturday at ${wantTime}` });
-    }
     const sent = await sendInvitesForHousehold(DEMO.householdId);
     return NextResponse.json({ ran_at: now.toISOString(), sent });
   }
 
   const sb = supabaseAdmin();
   const { data: households } = await sb.from('households').select('id, timezone');
-  const { data: settings } = await sb.from('reminder_settings').select('*');
 
   for (const h of households ?? []) {
-    const s = (settings ?? []).find((x) => x.household_id === h.id);
-    const tz = s?.timezone ?? h.timezone;
-    const local = toZonedTime(now, tz);
-    const hhmm = format(local, 'HH:mm', { timeZone: tz });
-    const dow = local.getDay();
-    const wantDow = s?.weekly_invite_day ?? 6;
-    const wantTime = (s?.weekly_invite_time ?? '09:00').slice(0, 5);
-    if (dow !== wantDow || hhmm !== wantTime) {
-      results.push({ household: h.id, skipped: `not yet (${dow} ${hhmm})` });
-      continue;
-    }
     const sent = await sendInvitesForHousehold(h.id);
     results.push({ household: h.id, sent });
   }
