@@ -6,6 +6,7 @@ import { mapsHref } from '@/lib/maps';
 import { prettyTime } from '@/lib/week';
 import { tellable } from '@/lib/phones';
 import ChildAvatar from './ChildAvatar';
+import SlotDetailModal from './SlotDetailModal';
 
 interface Props {
   slot: SlotView;
@@ -32,6 +33,7 @@ export default function SlotChip({ slot, currentUserId, density = 'roomy' }: Pro
   const router = useRouter();
   const [pending, start] = useTransition();
   const [err, setErr] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
   const [optimistic, setOptimistic] = useOptimistic(initialState, (_prev, next: ClaimState) => next);
 
   const ownership = optimistic;
@@ -69,49 +71,61 @@ export default function SlotChip({ slot, currentUserId, density = 'roomy' }: Pro
   // Press feedback
   const interactive = ownership !== 'taken';
 
-  // ─── COMPACT (column views): minimal info, expand-on-tap not implemented;
-  // the schedule/day view is the "click in for full details" path.
+  // Modal — used by both compact and roomy modes for "see full details + claim"
+  const detailModal = open && (
+    <SlotDetailModal
+      slot={slot} currentUserId={currentUserId} ownership={ownership} pending={pending}
+      claimedBy={claimedBy} err={err}
+      onClose={() => setOpen(false)}
+      onClaim={() => { doClaim(); setOpen(false); }}
+    />
+  );
+
+  // ─── COMPACT (column views): minimal info; tap chip body to open detail modal
   if (density === 'compact') {
     return (
-      <div className={`relative rounded-xl border transition-all duration-150 active:scale-[0.985] ${surface} ${pending ? 'opacity-90' : ''}`}>
-        <span
-          className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl"
-          style={{ background: slot.child.color }}
-          aria-hidden
-        />
-        <div className="pl-2.5 pr-2 py-2 space-y-1">
-          <div className="font-display text-base tabular-nums leading-tight">{prettyTime(slot.pickup_time)}</div>
-          <div className="flex items-center gap-1.5">
-            <ChildAvatar child={slot.child} size={22} />
-            <span className={`text-[10px] font-bold uppercase tracking-[0.08em] ${ownership === 'mine' ? 'opacity-90' : 'text-ink-700/70'}`}>{slot.child.name}</span>
+      <>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className={`relative w-full text-left rounded-xl border transition-all duration-150 active:scale-[0.985] ${surface} ${pending ? 'opacity-90' : ''}`}
+        >
+          <span
+            className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl"
+            style={{ background: slot.child.color }}
+            aria-hidden
+          />
+          <div className="pl-2.5 pr-2 py-2 space-y-1">
+            <div className="font-display text-base tabular-nums leading-tight">{prettyTime(slot.pickup_time)}</div>
+            <div className="flex items-center gap-1.5">
+              <ChildAvatar child={slot.child} size={22} />
+              <span className={`text-[10px] font-bold uppercase tracking-[0.08em] ${ownership === 'mine' ? 'opacity-90' : 'text-ink-700/70'}`}>{slot.child.name}</span>
+            </div>
+            <div className={`text-[13px] font-medium leading-tight truncate ${ownership === 'mine' ? 'text-cream-50' : 'text-ink-900'}`}>
+              {slot.title}
+            </div>
+            <div className="pt-0.5 text-[10px] font-bold uppercase tracking-wide">
+              {ownership === 'mine' ? '✓ on it'
+                : ownership === 'taken' ? (claimedBy?.full_name?.split(' ')[0] ?? '—')
+                : <span className="text-coral-600">tap to claim</span>}
+            </div>
           </div>
-          <div className={`text-[13px] font-medium leading-tight truncate ${ownership === 'mine' ? 'text-cream-50' : 'text-ink-900'}`}>
-            {slot.title}
-          </div>
-          <div className="pt-0.5">
-            {ownership === 'mine' ? (
-              <span className="text-[10px] font-bold tracking-wide uppercase opacity-95">✓ on it</span>
-            ) : ownership === 'taken' ? (
-              <span className="text-[11px] truncate block">{claimedBy?.full_name?.split(' ')[0] ?? '—'}</span>
-            ) : interactive ? (
-              <button
-                onClick={doClaim}
-                disabled={pending}
-                className="text-[11px] font-semibold rounded-md bg-sage-500 text-cream-50 px-2 py-1 active:scale-95 transition-transform w-full"
-              >
-                {pending ? '…' : 'Claim'}
-              </button>
-            ) : null}
-          </div>
-        </div>
-      </div>
+        </button>
+        {detailModal}
+      </>
     );
   }
 
   // ─── ROOMY (schedule + day views): full info, vertical hierarchy.
+  // Body is tappable for full detail modal; Claim button keeps its own click.
   return (
+    <>
     <div
-      className={`relative rounded-2xl border transition-all duration-150 active:scale-[0.985] ${surface} ${pending ? 'opacity-90' : ''}`}
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest('button,a')) return;
+        setOpen(true);
+      }}
+      className={`relative rounded-2xl border transition-all duration-150 active:scale-[0.985] cursor-pointer ${surface} ${pending ? 'opacity-90' : ''}`}
     >
       <span
         className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-2xl"
@@ -199,6 +213,8 @@ export default function SlotChip({ slot, currentUserId, density = 'roomy' }: Pro
         {err && <div className="text-xs text-coral-600 mt-1 font-medium">{err}</div>}
       </div>
     </div>
+    {detailModal}
+    </>
   );
 }
 
