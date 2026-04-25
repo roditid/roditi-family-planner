@@ -7,9 +7,9 @@ import type { MetadataRoute } from 'next';
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Pickup Planner',
-    short_name: 'Pickups',
-    description: 'Family pickup planning — see the week, claim a pickup, get a reminder.',
+    name: 'Roditi Family Planner',
+    short_name: 'Roditi',
+    description: 'The Roditi family planner — pickups, schedules, reminders, and the small things that make a week run.',
     start_url: '/my-pickups',
     display: 'standalone',
     orientation: 'portrait',

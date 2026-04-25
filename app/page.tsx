@@ -50,10 +50,10 @@ export default async function Landing() {
       <div className="mx-auto max-w-md px-5 sm:px-6 pt-10 sm:pt-14 pb-16">
         {/* Brand */}
         <div className="flex items-center gap-3 mb-8">
-          <div className="h-11 w-11 rounded-xl bg-sage-500 grid place-items-center text-cream-50 font-display text-xl shadow-sm">P</div>
-          <div>
-            <div className="font-display text-xl leading-none">Pickup Planner</div>
-            <div className="text-xs text-ink-700/60 mt-0.5">The Roditi family</div>
+          <div className="h-12 w-12 rounded-2xl bg-sage-500 grid place-items-center text-cream-50 font-display text-2xl shadow-sm">R</div>
+          <div className="leading-tight">
+            <div className="font-display text-xl leading-none tracking-tight">Roditi</div>
+            <div className="text-[10px] uppercase tracking-[0.2em] text-ink-700/55 font-semibold mt-1">Family Planner</div>
           </div>
         </div>
 

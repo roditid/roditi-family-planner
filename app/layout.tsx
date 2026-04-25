@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Pickup Planner — Roditi Family',
-  description: 'Weekly pickup planning for grandparents and helpers.',
+  title: 'Roditi Family Planner',
+  description: 'The Roditi family planner — pickups, schedules, and the small things that make a week run.',
 };
 
 export const viewport: Viewport = {

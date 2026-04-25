@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
           if (!p?.email) continue;
           await emailProvider.send({
             to: p.email,
-            subject: `Pickup Planner: ${orphans.length} unclaimed pickup${orphans.length > 1 ? 's' : ''} today`,
+            subject: `Roditi Family Planner: ${orphans.length} unclaimed pickup${orphans.length > 1 ? 's' : ''} today`,
             body: `Today still has ${orphans.length} unclaimed pickup(s):\n\n` +
               orphans.map((o) => `• ${o.child.name} at ${o.pickup_time.slice(0, 5)} — ${o.title}`).join('\n'),
           });

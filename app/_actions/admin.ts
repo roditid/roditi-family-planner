@@ -287,7 +287,7 @@ export async function sendTestReminderAction() {
   await emailProvider.send({
     to: ctx.profile.email,
     subject: `[TEST] ${subject}`,
-    body: `(This is a test from Pickup Planner — it's what helpers receive in the morning.)\n\n${body}`,
+    body: `(This is a test from Roditi Family Planner — it's what helpers receive in the morning.)\n\n${body}`,
   });
   revalidatePath('/admin/reminders');
 }

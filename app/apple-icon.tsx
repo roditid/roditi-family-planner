@@ -37,7 +37,7 @@ export default function AppleIcon() {
             boxShadow: '0 8px 16px rgba(20,20,16,0.18)',
           }}
         >
-          P
+          R
         </div>
       </div>
     ),

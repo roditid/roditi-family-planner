@@ -1,15 +1,15 @@
 'use client';
 
 /**
- * Per-child framing tweaks. Yali's source frames her face tighter than the
- * boys, so her photo file is pre-padded with her brand color (peach) — that
- * lets a single object-position rule work for all three.
+ * Per-child framing tweaks. With the new full-body Yali photo (rocking
+ * horse), her face sits in the upper-third of the frame — nudging
+ * object-position up biases the crop toward the head when the container
+ * is taller than the source ratio.
  */
 function photoStyle(name: string): React.CSSProperties {
   const n = (name ?? '').toLowerCase();
   if (n === 'yali') {
-    // The padded canvas shifts Yali's face higher; bias the crop further up.
-    return { objectPosition: '50% 38%' };
+    return { objectPosition: '50% 22%' };
   }
   return { objectPosition: '50% 28%' };
 }

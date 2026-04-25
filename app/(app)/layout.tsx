@@ -13,9 +13,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-black/5 bg-cream-50/80 backdrop-blur sticky top-0 z-10">
         <div className="mx-auto max-w-7xl px-3 sm:px-5 h-14 flex items-center gap-2 justify-between">
-          <Link href={isAdmin ? '/admin' : '/my-pickups'} className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-sage-500 grid place-items-center text-cream-50 font-display">P</div>
-            <span className="font-display text-base">Pickup Planner</span>
+          <Link href={isAdmin ? '/admin' : '/my-pickups'} className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-sage-500 grid place-items-center text-cream-50 font-display text-base shadow-sm">R</div>
+            <div className="leading-tight">
+              <div className="font-display text-base sm:text-[17px] tracking-tight leading-none">Roditi</div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-ink-700/55 font-semibold leading-none mt-0.5">Family Planner</div>
+            </div>
           </Link>
           <nav className="flex items-center gap-0.5 text-sm">
             {isAdmin && <NavLink href="/admin">Dashboard</NavLink>}

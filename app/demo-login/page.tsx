@@ -30,10 +30,10 @@ export default function DemoLogin() {
     <main className="min-h-screen grid place-items-center px-6 py-10">
       <div className="w-full max-w-xl">
         <div className="flex items-center gap-3 mb-8">
-          <div className="h-10 w-10 rounded-xl bg-sage-500 grid place-items-center text-cream-50 font-display text-xl">P</div>
-          <div>
-            <div className="font-display text-xl leading-none">Pickup Planner</div>
-            <div className="text-xs text-ink-700/60 mt-0.5">Demo — sign in as anyone in the family</div>
+          <div className="h-11 w-11 rounded-2xl bg-sage-500 grid place-items-center text-cream-50 font-display text-xl">R</div>
+          <div className="leading-tight">
+            <div className="font-display text-xl leading-none tracking-tight">Roditi</div>
+            <div className="text-[10px] uppercase tracking-[0.2em] text-ink-700/55 font-semibold mt-1">Family Planner</div>
           </div>
         </div>
 

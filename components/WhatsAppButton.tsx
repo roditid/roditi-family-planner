@@ -14,7 +14,7 @@ export default function WhatsAppButton({
   const message = [
     `Hi ${first}! 👋`,
     ``,
-    `Here's your personal Pickup Planner link for the family this week. Tap it to see what's on and claim any pickups you can do:`,
+    `Here's your personal Roditi Family Planner link for the week. Tap it to see what's on and claim any pickups you can do:`,
     ``,
     link,
     ``,

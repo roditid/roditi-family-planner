@@ -27,7 +27,7 @@ export const emailProvider: NotifyProvider = {
     }
     const resend = new Resend(process.env.RESEND_API_KEY);
     const { data, error } = await resend.emails.send({
-      from: process.env.REMINDER_FROM_EMAIL || 'Pickup Planner <onboarding@resend.dev>',
+      from: process.env.REMINDER_FROM_EMAIL || 'Roditi Family Planner <onboarding@resend.dev>',
       to,
       subject,
       text: body,
@@ -59,7 +59,7 @@ export function renderReminder(slot: SlotView) {
   if (dest) lines.push(`Drop off at: ${dest}${destAddr ? ` (${destAddr})` : ''}`);
   if (slot.notes) lines.push(`Note: ${slot.notes}`);
   lines.push('');
-  lines.push('— Pickup Planner');
+  lines.push('— Roditi Family Planner');
 
   return {
     subject: `Today: pick up ${slot.child.name} at ${slot.pickup_time.slice(0, 5)} from ${pickup}`,
@@ -131,7 +131,7 @@ export function renderClaimConfirmation(slot: SlotView, helperName: string | nul
     lines.push(slot.notes);
     lines.push('');
   }
-  lines.push('— Pickup Planner');
+  lines.push('— Roditi Family Planner');
 
   return {
     subject: `Pickup confirmed: ${kidNames} on ${dateLabel} at ${time}`,
