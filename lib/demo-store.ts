@@ -40,12 +40,12 @@ const CHILDREN: Child[] = [
 ];
 
 const ACTIVITIES: Activity[] = [
-  { id: 'a-adam-school',   child_id: 'c-adam', title: 'School pickup',     default_pickup_location_id: 'loc-school', default_destination_location_id: 'loc-home',  weekday: null, start_time: null, end_time: null, notes: 'Main gate',           event_keyword: 'school' },
-  { id: 'a-adam-football', child_id: 'c-adam', title: 'Football practice', default_pickup_location_id: 'loc-school', default_destination_location_id: 'loc-field', weekday: null, start_time: null, end_time: null, notes: 'Wait by north gate',  event_keyword: 'football' },
-  { id: 'a-liam-school',   child_id: 'c-liam', title: 'School pickup',     default_pickup_location_id: 'loc-school', default_destination_location_id: 'loc-home',  weekday: null, start_time: null, end_time: null, notes: 'Main gate',           event_keyword: 'school' },
-  { id: 'a-liam-music',    child_id: 'c-liam', title: 'Music lesson',      default_pickup_location_id: 'loc-music',  default_destination_location_id: 'loc-home',  weekday: null, start_time: null, end_time: null, notes: 'Ring the doorbell twice', event_keyword: 'music' },
-  { id: 'a-yali-gan',      child_id: 'c-yali', title: 'Preschool pickup',  default_pickup_location_id: 'loc-gan',    default_destination_location_id: 'loc-home',  weekday: null, start_time: null, end_time: null, notes: 'Side gate',           event_keyword: 'gan' },
-  { id: 'a-yali-dance',    child_id: 'c-yali', title: 'Dance class',       default_pickup_location_id: 'loc-dance',  default_destination_location_id: 'loc-home',  weekday: null, start_time: null, end_time: null, notes: null,                  event_keyword: 'dance' },
+  { id: 'a-adam-school',   child_id: 'c-adam', title: 'School pickup',     default_pickup_location_id: 'loc-school', default_destination_location_id: 'loc-home',  weekday: null, start_time: null, end_time: null, notes: 'Main gate',           event_keyword: 'school', pack_list: null },
+  { id: 'a-adam-football', child_id: 'c-adam', title: 'Football practice', default_pickup_location_id: 'loc-school', default_destination_location_id: 'loc-field', weekday: null, start_time: null, end_time: null, notes: 'Wait by north gate',  event_keyword: 'football', pack_list: null },
+  { id: 'a-liam-school',   child_id: 'c-liam', title: 'School pickup',     default_pickup_location_id: 'loc-school', default_destination_location_id: 'loc-home',  weekday: null, start_time: null, end_time: null, notes: 'Main gate',           event_keyword: 'school', pack_list: null },
+  { id: 'a-liam-music',    child_id: 'c-liam', title: 'Music lesson',      default_pickup_location_id: 'loc-music',  default_destination_location_id: 'loc-home',  weekday: null, start_time: null, end_time: null, notes: 'Ring the doorbell twice', event_keyword: 'music', pack_list: null },
+  { id: 'a-yali-gan',      child_id: 'c-yali', title: 'Preschool pickup',  default_pickup_location_id: 'loc-gan',    default_destination_location_id: 'loc-home',  weekday: null, start_time: null, end_time: null, notes: 'Side gate',           event_keyword: 'gan', pack_list: null },
+  { id: 'a-yali-dance',    child_id: 'c-yali', title: 'Dance class',       default_pickup_location_id: 'loc-dance',  default_destination_location_id: 'loc-home',  weekday: null, start_time: null, end_time: null, notes: null,                  event_keyword: 'dance', pack_list: null },
 ];
 
 // ---------------------------------------------------------------------------
@@ -98,6 +98,7 @@ function buildSlots(): PickupSlot[] {
       destination_text: null,
       additional_child_ids: [],
       notes: s.notes,
+      pack_notes: null,
       parent_notes: null,
       status: s.claimedBy ? 'claimed' : 'unclaimed',
       reminder_sent_at: null,
@@ -254,6 +255,7 @@ export function createSlot(input: {
     destination_text: null,
     additional_child_ids: [],
     notes: input.notes ?? null,
+    pack_notes: null,
     parent_notes: null,
     status: 'unclaimed',
     reminder_sent_at: null,

@@ -66,6 +66,8 @@ export interface Activity {
   end_time: string | null;
   notes: string | null;
   event_keyword: string | null;
+  /** Recurring "what to bring" reminder. Sent the night before via cron. */
+  pack_list: string | null;
 }
 
 export interface PickupSlot {
@@ -89,6 +91,8 @@ export interface PickupSlot {
   additional_child_ids: string[];
   notes: string | null;
   parent_notes: string | null;
+  /** Per-event one-off pack reminder ("fancy clothes for Pesach"). */
+  pack_notes: string | null;
   status: SlotStatus;
   reminder_sent_at: string | null;
   claim_cutoff_at: string | null;

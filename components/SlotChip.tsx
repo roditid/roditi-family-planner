@@ -7,6 +7,7 @@ import { prettyTime } from '@/lib/week';
 import { tellable } from '@/lib/phones';
 import ChildAvatar from './ChildAvatar';
 import SlotDetailModal from './SlotDetailModal';
+import { relativeTimeUntil } from '@/lib/relative-time';
 
 interface Props {
   slot: SlotView;
@@ -46,6 +47,9 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
   const dest = slot.destination_location ?? (slot.destination_text ? { label: slot.destination_text, street: null, city: null, lat: null, lng: null } : null);
   const allKids = [slot.child, ...(slot.additional_children ?? [])];
   const isCombined = allKids.length > 1;
+  // Show "in 4 hours" / "in 25 min" / "starting now" when the pickup is
+  // imminent (< 6 hours away). Coral + bold for urgent (< 30 min).
+  const soon = relativeTimeUntil(slot.date, slot.pickup_time);
 
   // Visual treatment per ownership state
   const surface =
@@ -94,31 +98,44 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
     />
   );
 
-  // ─── COMPACT (column views: 3-day / week): photo is the hero, info packed vertically.
-  // Layout: rectangular kid photo on top (full chip width, ~4:3), then time,
-  // kid name, activity, pickup label, and a status footer. Tap body for full
-  // detail modal.
+  // ─── COMPACT (column views: 3-day / week): photo-led, taller card, more
+  // detail. The photo runs taller (3:4) so the kid's face dominates; below
+  // it we show time, kid label(s), activity, pickup → drop-off, end time,
+  // and a status pill. Tap body opens the modal for full detail + claim.
   if (density === 'compact') {
     const pickupLabel = pickup?.label ?? null;
+    const destLabel = dest?.label ?? null;
+    const viaLabel = via?.label ?? null;
     return (
       <>
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className={`group relative w-full text-left rounded-xl border transition-all duration-150 active:scale-[0.985] overflow-hidden ${surface} ${pending ? 'opacity-90' : ''}`}
+          className={`group relative w-full text-left rounded-xl border transition-all duration-150 active:scale-[0.985] overflow-hidden flex flex-col ${surface} ${pending ? 'opacity-90' : ''}`}
         >
-          {/* Photo — fills chip width, fixed aspect for consistent rhythm across columns.
-              Combined sibling trips show all kids side-by-side in equal widths. */}
-          <div className="relative w-full flex gap-0.5" style={{ aspectRatio: '4 / 3' }}>
+          {/* Photo block — taller portrait crop (3:4) for a stronger face
+              presence in narrow columns. Combined sibling trips show kids
+              side-by-side at equal widths. */}
+          <div className="relative w-full flex gap-0.5" style={{ aspectRatio: '3 / 4' }}>
             {allKids.map((kid) => (
               <div key={kid.id} className="flex-1 relative min-w-0">
                 <ChildAvatar child={kid} shape="rect" rounded="rounded-none" />
               </div>
             ))}
-            {/* Time chip overlaid on photo (bottom-left) so the photo can stay tall */}
+            {/* Time chip overlaid bottom-left + relative-when below it when imminent */}
             <span className="absolute left-1.5 bottom-1.5 px-1.5 py-0.5 rounded-md bg-cream-50/95 text-ink-900 font-display text-[15px] tabular-nums leading-none shadow-sm">
               {prettyTime(slot.pickup_time)}
             </span>
+            {soon && (
+              <span
+                className={
+                  'absolute left-1.5 top-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-[0.08em] shadow-sm leading-none ' +
+                  (soon.urgent ? 'bg-coral-400 text-cream-50' : 'bg-cream-50/95 text-coral-600')
+                }
+              >
+                {soon.label}
+              </span>
+            )}
             {ownership === 'mine' && (
               <span className="absolute right-1.5 top-1.5 h-5 w-5 rounded-full bg-cream-50 text-sage-700 grid place-items-center text-[11px] font-bold shadow-sm">✓</span>
             )}
@@ -127,8 +144,9 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
             )}
           </div>
 
-          {/* Text block */}
-          <div className="px-2 py-2 space-y-1">
+          {/* Text block — flex-1 so it stretches and fills any remaining
+              vertical space in the column. Generous spacing between rows. */}
+          <div className="px-2.5 py-2.5 flex-1 flex flex-col gap-1.5">
             <div className="text-[9px] font-bold uppercase tracking-[0.12em] leading-none flex flex-wrap gap-x-1 gap-y-0.5">
               {allKids.map((kid, i) => (
                 <span key={kid.id} style={{ color: ownership === 'mine' ? 'rgba(253,250,243,0.85)' : kid.color }}>
@@ -137,25 +155,54 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
                 </span>
               ))}
             </div>
-            <div className={`font-display text-[14px] leading-[1.15] tracking-tight line-clamp-2 ${ownership === 'mine' ? 'text-cream-50' : 'text-ink-900'}`}>
+            <div className={`font-display text-[15px] leading-[1.15] tracking-tight line-clamp-2 ${ownership === 'mine' ? 'text-cream-50' : 'text-ink-900'}`}>
               {slot.title}
             </div>
-            {pickupLabel && (
-              <div className={`text-[11px] leading-tight truncate ${ownership === 'mine' ? 'opacity-80' : 'text-ink-700/65'}`}>
-                from {pickupLabel}
-              </div>
-            )}
+
+            {/* Route summary — pickup → via → drop-off, each on its own line */}
+            <div className={`text-[11px] leading-snug space-y-0.5 ${ownership === 'mine' ? 'opacity-85' : 'text-ink-700/65'}`}>
+              {pickupLabel && (
+                <div className="flex gap-1">
+                  <span className="opacity-60 shrink-0">from</span>
+                  <span className="truncate">{pickupLabel}</span>
+                </div>
+              )}
+              {viaLabel && (
+                <div className="flex gap-1">
+                  <span className="opacity-60 shrink-0">via</span>
+                  <span className="truncate">{viaLabel}</span>
+                </div>
+              )}
+              {destLabel && (
+                <div className="flex gap-1">
+                  <span className="opacity-60 shrink-0">to</span>
+                  <span className="truncate">{destLabel}</span>
+                </div>
+              )}
+            </div>
+
             {slot.end_time && (
-              <div className={`text-[10px] tabular-nums ${ownership === 'mine' ? 'opacity-70' : 'text-ink-700/50'}`}>
+              <div className={`text-[10px] tabular-nums uppercase tracking-wider font-semibold ${ownership === 'mine' ? 'opacity-70' : 'text-ink-700/50'}`}>
                 ends {prettyTime(slot.end_time)}
               </div>
             )}
-            <div className={`pt-1 text-[9px] font-bold uppercase tracking-[0.1em] ${ownership === 'mine' ? 'opacity-95' : ''}`}>
-              {ownership === 'mine' ? "you're on it"
-                : ownership === 'taken' ? (
-                  <span className="text-ink-700/65">{claimedBy?.full_name?.split(' ')[0] ?? '—'}</span>
-                )
-                : <span className="text-coral-600">tap to claim</span>}
+
+            {/* Status pill — bottom-aligned via mt-auto so all chips line up */}
+            <div className="mt-auto pt-1.5">
+              {ownership === 'mine' ? (
+                <span className="inline-flex items-center gap-1 px-1.5 py-1 rounded-md bg-cream-50/15 text-cream-50 text-[10px] font-bold uppercase tracking-[0.1em]">
+                  <span className="h-3.5 w-3.5 rounded-full bg-cream-50 text-sage-700 grid place-items-center text-[9px]">✓</span>
+                  You're on it
+                </span>
+              ) : ownership === 'taken' ? (
+                <span className="inline-flex items-center gap-1 px-1.5 py-1 rounded-md bg-sage-500/12 text-sage-700 text-[10px] font-bold uppercase tracking-[0.1em]">
+                  {firstNameOf(claimedBy?.full_name)}'s on it
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-1.5 py-1 rounded-md bg-coral-400/15 text-coral-600 text-[10px] font-bold uppercase tracking-[0.1em]">
+                  Tap to claim
+                </span>
+              )}
             </div>
           </div>
         </button>
@@ -209,11 +256,23 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
 
         {/* CONTENT COLUMN */}
         <div className="flex-1 min-w-0 space-y-2">
-          {/* Time headline + duration */}
+          {/* Time headline + relative-when + duration */}
           <div className="flex items-baseline gap-2.5 flex-wrap">
             <span className="font-display text-3xl sm:text-4xl tabular-nums leading-none tracking-tight">
               {prettyTime(slot.pickup_time)}
             </span>
+            {soon && (
+              <span
+                className={
+                  'text-[11px] uppercase tracking-[0.08em] font-bold px-2 py-0.5 rounded-full ' +
+                  (soon.urgent
+                    ? (ownership === 'mine' ? 'bg-coral-400/40 text-cream-50' : 'bg-coral-400 text-cream-50')
+                    : (ownership === 'mine' ? 'bg-cream-50/15 text-cream-50' : 'bg-coral-400/15 text-coral-600'))
+                }
+              >
+                {soon.label}
+              </span>
+            )}
             {slot.end_time && (
               <span className={`text-[11px] tabular-nums uppercase tracking-[0.08em] font-semibold ${ownership === 'mine' ? 'opacity-70' : 'text-ink-700/50'}`}>
                 → {prettyTime(slot.end_time)}
@@ -276,34 +335,33 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
             </div>
           )}
 
-          {/* Status + action */}
-          <div className="pt-2 flex items-center justify-between gap-3 flex-wrap">
+          {/* Status + action — when claimed (by anyone), the "X's on it" pill
+              IS the action area. Unclaiming happens through the modal so the
+              chip doesn't carry a destructive button inline. */}
+          <div className="pt-2 flex items-center justify-end gap-3 flex-wrap">
             {ownership === 'mine' ? (
-              <span className="text-[11px] font-bold tracking-[0.1em] uppercase opacity-95">You're on it</span>
+              <span className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-cream-50/15 text-cream-50 text-sm font-semibold">
+                <span className="h-5 w-5 rounded-full bg-cream-50 text-sage-700 grid place-items-center text-[11px] font-bold">✓</span>
+                You're on it
+              </span>
             ) : ownership === 'taken' ? (
-              <span className="inline-flex items-center gap-1.5 text-sm">
-                <span className="h-6 w-6 rounded-full bg-sage-500/15 text-sage-700 grid place-items-center text-[11px] font-bold">
+              <span className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-sage-500/12 text-sage-700 text-sm font-semibold">
+                <span className="h-5 w-5 rounded-full bg-sage-500/25 grid place-items-center text-[11px] font-bold">
                   {(claimedBy?.full_name ?? '?').slice(0, 1)}
                 </span>
-                <span className="font-medium">{claimedBy?.full_name}</span>
+                {firstNameOf(claimedBy?.full_name)}'s on it
               </span>
             ) : (
-              <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-coral-600">Needs a helper</span>
-            )}
-
-            {interactive && (
-              <button
-                onClick={doClaim}
-                disabled={pending}
-                className={
-                  'rounded-xl text-sm font-semibold tracking-wide transition-all duration-150 active:scale-95 ' +
-                  (ownership === 'mine'
-                    ? 'bg-cream-50/15 hover:bg-cream-50/25 text-cream-50 px-3.5 py-2'
-                    : 'bg-sage-500 hover:bg-sage-600 text-cream-50 px-4 py-2.5 shadow-sm')
-                }
-              >
-                {pending ? '…' : ownership === 'mine' ? 'Unclaim' : 'Claim'}
-              </button>
+              <>
+                <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-coral-600 mr-auto">Needs a helper</span>
+                <button
+                  onClick={doClaim}
+                  disabled={pending}
+                  className="rounded-xl text-sm font-semibold tracking-wide transition-all duration-150 active:scale-95 bg-sage-500 hover:bg-sage-600 text-cream-50 px-4 py-2.5 shadow-sm"
+                >
+                  {pending ? '…' : 'Claim'}
+                </button>
+              </>
             )}
           </div>
 
@@ -314,6 +372,12 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
     {detailModal}
     </>
   );
+}
+
+/** First name from a "First Last" or "First (Nickname)" full name. */
+function firstNameOf(name: string | null | undefined): string {
+  if (!name) return 'Someone';
+  return name.split(/[\s(]/)[0] || name;
 }
 
 function LocLine({ label, loc, mine }: { label: string; loc: any; mine: boolean }) {

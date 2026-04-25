@@ -205,6 +205,16 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
       const slotViaLoc = match.activity?.default_destination_location_id ?? null;
       const slotDestLoc = childRecord.home_location_id ?? null;
 
+      // Pull per-event one-offs out of the calendar description. Recognized
+      // labels (case-insensitive, anywhere on a line):
+      //   Pack: …    Bring: …    Wear: …    →  pack_notes
+      //   Note: …                            →  parent_notes (admin-only)
+      // Lines that don't match a label are dropped — the description is
+      // free-form, we only lift the structured bits.
+      const desc = ev.description ?? '';
+      const pack_notes = pickLabeledLines(desc, ['pack', 'bring', 'wear']);
+      const parent_notes = pickLabeledLines(desc, ['note', 'notes']);
+
       const { error } = await sb.from('pickup_slots').upsert({
         household_id: householdId,
         child_id: match.child.id,
@@ -220,6 +230,8 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
         destination_location_id: slotDestLoc,
         pickup_location_text: ev.location ?? null,  // preserve raw event location as fallback
         notes: match.activity?.notes ?? null,
+        pack_notes: pack_notes || null,
+        parent_notes: parent_notes || null,
       }, { onConflict: 'source_event_id' });
       if (!error) slotsCreated++;
     }
@@ -236,6 +248,25 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
 
 function matches(title: string, kw: string) {
   return title.toLowerCase().includes(kw.toLowerCase());
+}
+
+/**
+ * Pull labeled fragments out of a free-form description. For every line that
+ * starts with one of `labels:` (case-insensitive), strip the label and
+ * collect the remainder. Returns the joined text, or '' if nothing matched.
+ *
+ *   "Bring: water bottle\nWear: red shirt"  +  ['pack','bring','wear']
+ *     → "water bottle. red shirt"
+ */
+function pickLabeledLines(desc: string, labels: string[]): string {
+  if (!desc) return '';
+  const re = new RegExp(`^\\s*(?:${labels.join('|')})\\s*:\\s*(.+?)\\s*$`, 'gim');
+  const out: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(desc)) !== null) {
+    if (m[1]) out.push(m[1].trim());
+  }
+  return out.join('. ').replace(/\.\s*\.\s*/g, '. ');
 }
 
 interface EventMatch {

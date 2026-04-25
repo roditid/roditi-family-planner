@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import type { SlotView } from '@/lib/types';
 import { type CalView, daysForView, isoDay, isToday, prettyDay, shortDay, dayNumber } from '@/lib/week';
+import { relativeDay } from '@/lib/relative-time';
 import CalendarToolbar from './CalendarToolbar';
 import SlotChip from './SlotChip';
 import SwipeArea from './SwipeArea';
@@ -77,13 +78,24 @@ function ScheduleLayout({ days, byDay, currentUserId, currentUserPhone, currentU
         const k = isoDay(d);
         const todays = (byDay.get(k) ?? []).sort((a, b) => a.pickup_time.localeCompare(b.pickup_time));
         const today = isToday(d);
+        const rel = relativeDay(k);
+        // Show the relative-when chip in EVERY header (today / tomorrow /
+        // this week / next week / in N weeks). Coral for today/tomorrow so
+        // urgency reads instantly; sage for further out.
+        const chipClass = rel === 'today' || rel === 'tomorrow'
+          ? 'bg-coral-400/15 text-coral-600'
+          : 'bg-black/[0.05] text-ink-700/65';
         return (
           <section key={k}>
-            <div className="px-1 mb-2 flex items-baseline gap-3">
+            <div className="px-1 mb-2 flex items-baseline gap-3 flex-wrap">
               <h2 className={`font-display text-xl sm:text-2xl tracking-tight ${today ? 'text-sage-700' : ''}`}>
                 {prettyDay(d)}
               </h2>
-              {today && <span className="chip bg-sage-500 text-cream-50 text-[10px] px-2 py-0.5 leading-none">today</span>}
+              {rel !== 'past' && (
+                <span className={`text-[10px] uppercase tracking-[0.1em] font-bold px-2 py-0.5 rounded-full ${chipClass}`}>
+                  {rel}
+                </span>
+              )}
               <span className="text-xs text-ink-700/45 ml-auto tabular-nums">{todays.length} pickup{todays.length === 1 ? '' : 's'}</span>
             </div>
             <div className="space-y-2">
@@ -106,9 +118,9 @@ function ScheduleLayout({ days, byDay, currentUserId, currentUserPhone, currentU
 function ColumnsLayout({
   days, byDay, currentUserId, currentUserPhone, currentUserName, cols,
 }: { days: Date[]; byDay: Map<string, SlotView[]>; currentUserId: string; currentUserPhone?: string | null; currentUserName?: string | null; cols: 3 | 7 }) {
-  // 3-day: 3 cols always fit on phone (~120px each)
-  // Week: 7 cols at min 130px each → scrolls on phones with snap-x
-  const minColWidth = cols === 3 ? 100 : 130;
+  // 3-day: roomier columns now that compact chips pack more detail.
+  // Week: keeps 7 cols viable but each is a real card with route + status.
+  const minColWidth = cols === 3 ? 130 : 150;
   return (
     <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 snap-x snap-mandatory pb-2">
       <div

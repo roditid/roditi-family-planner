@@ -1,19 +1,15 @@
 'use client';
 
 /**
- * Per-child framing tweaks. Yali's source photo crops tighter on her face
- * than Adam's and Liam's, so she looks oversized in the same container.
- * We dial her down with a small scale + repositioned origin so all three
- * kids feel like they're shot at the same distance.
+ * Per-child framing tweaks. Yali's source frames her face tighter than the
+ * boys, so her photo file is pre-padded with her brand color (peach) — that
+ * lets a single object-position rule work for all three.
  */
 function photoStyle(name: string): React.CSSProperties {
   const n = (name ?? '').toLowerCase();
   if (n === 'yali') {
-    return {
-      objectPosition: '50% 22%',
-      transform: 'scale(0.78)',
-      transformOrigin: '50% 32%',
-    };
+    // The padded canvas shifts Yali's face higher; bias the crop further up.
+    return { objectPosition: '50% 38%' };
   }
   return { objectPosition: '50% 28%' };
 }

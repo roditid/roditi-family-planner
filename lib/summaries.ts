@@ -137,6 +137,55 @@ export async function buildPaulaSundaySummary(
 }
 
 /**
+ * Evening backpack reminder. Walks tomorrow's pickup slots and consolidates
+ * every "pack" item — per-activity defaults (judo uniform, soccer cleats)
+ * plus per-event one-offs lifted from the calendar event description (e.g.
+ * "fancy clothes for Pesach"). Returns null when nothing needs packing.
+ */
+export async function buildBackpackReminder(
+  sb: SupabaseClient,
+  householdId: string
+): Promise<{ subject: string; body: string } | null> {
+  const tomorrow = addDays(new Date(), 1);
+  const startISO = format(tomorrow, 'yyyy-MM-dd');
+  const endISO = format(addDays(tomorrow, 1), 'yyyy-MM-dd');
+  const slots = await fetchSlots(sb, householdId, startISO, endISO);
+
+  type Item = { kid: string; activity: string; time: string; pack: string };
+  const items: Item[] = [];
+  for (const s of slots) {
+    const activityPack = (s.activity as any)?.pack_list as string | undefined;
+    const onePack = (s as any).pack_notes as string | undefined;
+    const pack = [activityPack, onePack].filter(Boolean).join('; ');
+    if (!pack) continue;
+    items.push({
+      kid: s.child.name,
+      activity: s.title,
+      time: s.pickup_time.slice(0, 5),
+      pack,
+    });
+  }
+
+  if (items.length === 0) return null;
+
+  const dateLabel = tomorrow.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const lines: string[] = [];
+  lines.push(`Tomorrow's backpacks (${dateLabel}):`);
+  lines.push('');
+  for (const it of items) {
+    lines.push(`• ${it.kid} — ${it.pack}`);
+    lines.push(`   (${it.activity}, ${it.time})`);
+  }
+  lines.push('');
+  lines.push('Tip: pack tonight so the bag goes to Gan in the morning whoever drops off.');
+
+  return {
+    subject: `Tomorrow's backpacks — ${items.length} thing${items.length === 1 ? '' : 's'} to remember`,
+    body: lines.join('\n'),
+  };
+}
+
+/**
  * Saturday-evening reminder for the grandparents. Short and warm: just
  * point at their personal link and let them browse.
  */
