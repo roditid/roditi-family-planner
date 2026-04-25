@@ -15,6 +15,12 @@ import { demoMode, DEMO_COOKIE } from '@/lib/demo-session';
 import { findUserByToken, allUsers } from '@/lib/demo-store';
 import { cookies } from 'next/headers';
 
+// CRITICAL: every visit must generate a FRESH single-use magic-link.
+// Without this, Next.js caches the GET response and returns the same
+// (already-consumed) token, giving every subsequent click `otp_expired`.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const RESERVED = new Set([
   'admin', 'login', 'api', 'auth', 'i', 'my-pickups', 'pickups',
   'demo-login', 'manifest.json', 'icon', 'apple-icon', 'favicon.ico',

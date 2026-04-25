@@ -15,6 +15,10 @@ import { demoMode, DEMO_COOKIE } from '@/lib/demo-session';
 import { findUserByToken } from '@/lib/demo-store';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
+// Single-use magic-link must be regenerated every visit (no caching).
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(req: NextRequest, { params }: { params: { token: string } }) {
   const token = params.token;
   const base = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
