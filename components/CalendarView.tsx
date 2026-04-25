@@ -48,7 +48,7 @@ export default function CalendarView({ view, anchor, slots, currentUserId, onlyM
                 ? 'minmax(280px, 1fr)'
                 : view === '3day'
                   ? 'repeat(3, minmax(220px, 1fr))'
-                  : 'repeat(5, minmax(170px, 1fr))',
+                  : 'repeat(7, minmax(150px, 1fr))',
           }}
         >
           {days.map((d) => {

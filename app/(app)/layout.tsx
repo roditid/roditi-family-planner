@@ -11,15 +11,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-black/5 bg-cream-50/80 backdrop-blur sticky top-0 z-10">
-        <div className="mx-auto max-w-4xl px-5 h-14 flex items-center gap-2 justify-between">
-          <Link href="/my-pickups" className="flex items-center gap-2">
+        <div className="mx-auto max-w-7xl px-3 sm:px-5 h-14 flex items-center gap-2 justify-between">
+          <Link href={isAdmin ? '/admin' : '/my-pickups'} className="flex items-center gap-2">
             <div className="h-7 w-7 rounded-lg bg-sage-500 grid place-items-center text-cream-50 font-display">P</div>
             <span className="font-display text-base">Pickup Planner</span>
           </Link>
-          <nav className="flex items-center gap-1 text-sm">
-            <NavLink href="/my-pickups">My pickups</NavLink>
-            <NavLink href="/pickups">Available</NavLink>
-            {isAdmin && <NavLink href="/admin">Admin</NavLink>}
+          <nav className="flex items-center gap-0.5 text-sm">
+            {isAdmin && <NavLink href="/admin">Dashboard</NavLink>}
+            <NavLink href="/my-pickups">{isAdmin ? 'My pickups' : 'Pickups'}</NavLink>
           </nav>
         </div>
       </header>

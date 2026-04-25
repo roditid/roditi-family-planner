@@ -19,8 +19,12 @@ create table households (
 create type user_role as enum ('admin', 'helper');
 create type helper_kind as enum ('grandparent', 'nanny', 'other');
 
+-- DEFERRABLE INITIALLY DEFERRED on the FK so the on_auth_user_created
+-- trigger (below) can insert the profile row in the same transaction as
+-- auth.users without hitting an FK violation under Supabase's connection
+-- pool / isolation behavior.
 create table profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
+  id uuid primary key references auth.users(id) on delete cascade deferrable initially deferred,
   full_name text not null default '',
   email text,
   phone_number text,
@@ -255,9 +259,10 @@ create trigger reminder_settings_touch before update on reminder_settings
 -- ----------------------------------------------------------------------
 -- Auto-create profile on signup
 -- ----------------------------------------------------------------------
-create or replace function handle_new_user() returns trigger language plpgsql security definer as $$
+create or replace function handle_new_user() returns trigger
+language plpgsql security definer set search_path = public, auth as $$
 begin
-  insert into profiles (id, full_name, email)
+  insert into public.profiles (id, full_name, email)
   values (
     new.id,
     coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
