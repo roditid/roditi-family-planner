@@ -10,7 +10,8 @@
  */
 import { google } from 'googleapis';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { addDays, format } from 'date-fns';
+import { addDays } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 
 export function oauthClient() {
   return new google.auth.OAuth2(
@@ -62,7 +63,7 @@ async function authorizedClient(sb: SupabaseClient, householdId: string) {
  *
  * Returns counts for the admin UI.
  */
-export async function syncCalendar(sb: SupabaseClient, householdId: string, days = 14) {
+export async function syncCalendar(sb: SupabaseClient, householdId: string, days = 21) {
   const { client, conn } = await authorizedClient(sb, householdId);
   const cal = google.calendar({ version: 'v3', auth: client });
   const calIds: string[] = Array.isArray(conn.selected_calendar_ids)
@@ -70,6 +71,11 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
     : JSON.parse(conn.selected_calendar_ids || '[]');
   const timeMin = new Date().toISOString();
   const timeMax = addDays(new Date(), days).toISOString();
+
+  // Get household timezone so we render slot times correctly regardless of
+  // where the sync runs from (local machine vs Vercel UTC).
+  const { data: household } = await sb.from('households').select('timezone').eq('id', householdId).single();
+  const tz = household?.timezone ?? 'Asia/Jerusalem';
 
   let eventsSeen = 0;
   let slotsCreated = 0;
@@ -123,9 +129,9 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
       const match = await resolveEventMatch(sb, title, children ?? [], activities ?? []);
       if (!match) continue;
 
-      const pickupTime = format(start, 'HH:mm:ss');
-      const endTime = end ? format(end, 'HH:mm:ss') : null;
-      const date = format(start, 'yyyy-MM-dd');
+      const pickupTime = formatInTimeZone(start, tz, 'HH:mm:ss');
+      const endTime = end ? formatInTimeZone(end, tz, 'HH:mm:ss') : null;
+      const date = formatInTimeZone(start, tz, 'yyyy-MM-dd');
 
       // Display title: prefer parsed activity name (e.g. "Ninja") over the raw
       // calendar title ("Ninja - Adam") so the UI shows the cleaner version.

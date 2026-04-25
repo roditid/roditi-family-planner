@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { requireAdmin } from '@/lib/permissions';
 import { supabaseServer } from '@/lib/supabase/server';
 import { demoMode } from '@/lib/demo-session';
@@ -5,8 +6,10 @@ import { format } from 'date-fns';
 
 export const dynamic = 'force-dynamic';
 
-export default async function CalendarSettings() {
+export default async function CalendarSettings({ searchParams }: { searchParams: { synced?: string; connected?: string } }) {
   const ctx = await requireAdmin();
+  const justSynced = typeof searchParams.synced === 'string';
+  const justConnected = searchParams.connected === '1';
 
   let conn: any = null;
   let owner: any = null;
@@ -37,6 +40,24 @@ export default async function CalendarSettings() {
           Schedule data comes from a single connected Google Calendar. Both admins manage assignments, but only the calendar owner re-authenticates when the connection expires.
         </p>
       </header>
+
+      {justSynced && (
+        <div className="rounded-2xl bg-sage-500/10 border border-sage-500/30 px-5 py-4">
+          <div className="font-medium text-sage-700 mb-1">
+            ✓ Synced — {searchParams.synced} slot{searchParams.synced === '1' ? '' : 's'} imported
+          </div>
+          <div className="text-sm text-ink-700/70">
+            Pickups now live on the dashboard.{' '}
+            <Link href="/admin" className="underline text-sage-700 font-medium">View this week's pickups →</Link>
+          </div>
+        </div>
+      )}
+
+      {justConnected && (
+        <div className="rounded-2xl bg-sage-500/10 border border-sage-500/30 px-5 py-4">
+          <div className="font-medium text-sage-700">✓ Connected. Click "Sync now" below to import events.</div>
+        </div>
+      )}
 
       {conn && conn.access_token && conn.refresh_token ? (
         <div className="card p-6 space-y-4">
