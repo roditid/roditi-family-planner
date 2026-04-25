@@ -13,10 +13,12 @@ import ChildAvatar from './ChildAvatar';
  * contacts (with tap-to-call), notes, and the Claim/Unclaim action.
  */
 export default function SlotDetailModal({
-  slot, currentUserId, ownership, pending, claimedBy, err, onClose, onClaim,
+  slot, currentUserId, currentUserPhone, currentUserName, ownership, pending, claimedBy, err, onClose, onClaim,
 }: {
   slot: SlotView;
   currentUserId: string;
+  currentUserPhone?: string | null;
+  currentUserName?: string | null;
   ownership: 'mine' | 'taken' | 'open';
   pending: boolean;
   claimedBy: any;
@@ -36,7 +38,10 @@ export default function SlotDetailModal({
   }, [onClose]);
 
   const pickup = slot.pickup_location ?? (slot.pickup_location_text ? { label: slot.pickup_location_text, street: null, city: null, lat: null, lng: null, notes: null } as any : null);
+  const via = slot.via_location ?? (slot.via_location_text ? { label: slot.via_location_text, street: null, city: null, lat: null, lng: null, notes: null } as any : null);
   const dest = slot.destination_location ?? (slot.destination_text ? { label: slot.destination_text, street: null, city: null, lat: null, lng: null, notes: null } as any : null);
+  const allKids = [slot.child, ...(slot.additional_children ?? [])];
+  const yaliInTrip = allKids.some((k) => k.name.toLowerCase() === 'yali');
 
   return (
     <div
@@ -59,11 +64,35 @@ export default function SlotDetailModal({
         </div>
 
         <div className="px-5 pt-2 pb-5 sm:p-6 space-y-4">
+          {/* Confirmed banner — shown when this is now your pickup */}
+          {ownership === 'mine' && (
+            <div className="rounded-xl bg-sage-500/10 border border-sage-500/30 px-3.5 py-2.5 flex items-center gap-2.5">
+              <span className="h-7 w-7 rounded-full bg-sage-500 text-cream-50 grid place-items-center text-sm font-bold shadow-sm">✓</span>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-sage-700 leading-tight">You're on this pickup</div>
+                <div className="text-xs text-ink-700/65 mt-0.5">Screenshot below or share to your phone.</div>
+              </div>
+            </div>
+          )}
+
           {/* Header */}
           <div className="flex items-start gap-3">
-            <ChildAvatar child={slot.child} size={48} />
+            <div className="flex -space-x-2 shrink-0">
+              {allKids.map((kid, i) => (
+                <span key={kid.id} style={{ zIndex: allKids.length - i }} className="ring-2 ring-cream-50 rounded-full">
+                  <ChildAvatar child={kid} size={48} />
+                </span>
+              ))}
+            </div>
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-bold uppercase tracking-[0.1em]" style={{ color: slot.child.color }}>{slot.child.name}</div>
+              <div className="text-xs font-bold uppercase tracking-[0.1em] flex flex-wrap gap-x-1.5 gap-y-0.5">
+                {allKids.map((kid, i) => (
+                  <span key={kid.id} style={{ color: kid.color }}>
+                    {kid.name}
+                    {i < allKids.length - 1 && <span className="text-ink-700/40"> →</span>}
+                  </span>
+                ))}
+              </div>
               <div className="font-display text-2xl sm:text-3xl leading-tight tracking-tight">{slot.title}</div>
               <div className="text-sm text-ink-700/70 mt-0.5 tabular-nums">
                 {prettyTime(slot.pickup_time)}{slot.end_time && ` – ends ${prettyTime(slot.end_time)}`}
@@ -78,11 +107,13 @@ export default function SlotDetailModal({
             </button>
           </div>
 
-          {/* Pickup */}
+          {/* Stops: pickup → via → drop-off */}
           <DetailLoc label="Pick up from" loc={pickup} />
+          {via && <DetailLoc label="Then go to" loc={via} />}
+          <DetailLoc label={via ? 'Then drop off at' : 'Drop off at'} loc={dest} />
 
-          {/* Drop-off */}
-          <DetailLoc label="Drop off at" loc={dest} />
+          {/* Stroller note — only when Yali is in the trip */}
+          {yaliInTrip && <StrollerNote />}
 
           {/* Notes (slot-level) */}
           {slot.notes && (
@@ -92,40 +123,177 @@ export default function SlotDetailModal({
             </div>
           )}
 
-          {/* Status row */}
-          <div className="pt-2 border-t border-black/[0.06]">
-            {ownership === 'mine' ? (
-              <div className="text-sm font-semibold text-sage-700">✓ You're on this pickup.</div>
-            ) : ownership === 'taken' ? (
-              <div className="text-sm flex items-center gap-2">
-                <span className="h-7 w-7 rounded-full bg-sage-500/15 text-sage-700 grid place-items-center text-xs font-bold">
-                  {(claimedBy?.full_name ?? '?').slice(0, 1)}
-                </span>
-                <span><b>{claimedBy?.full_name}</b> is on this one.</span>
-              </div>
-            ) : (
-              <div className="text-sm font-medium text-coral-600">Needs a helper.</div>
-            )}
-          </div>
+          {/* Status row — only show for 'taken' or 'open' ('mine' has the banner above) */}
+          {ownership !== 'mine' && (
+            <div className="pt-2 border-t border-black/[0.06]">
+              {ownership === 'taken' ? (
+                <div className="text-sm flex items-center gap-2">
+                  <span className="h-7 w-7 rounded-full bg-sage-500/15 text-sage-700 grid place-items-center text-xs font-bold">
+                    {(claimedBy?.full_name ?? '?').slice(0, 1)}
+                  </span>
+                  <span><b>{claimedBy?.full_name}</b> is on this one.</span>
+                </div>
+              ) : (
+                <div className="text-sm font-medium text-coral-600">Needs a helper.</div>
+              )}
+            </div>
+          )}
 
           {/* Action */}
           {ownership !== 'taken' && (
-            <button
-              onClick={onClaim}
-              disabled={pending}
-              className={
-                'w-full rounded-2xl py-4 text-base font-semibold transition-all duration-150 active:scale-[0.98] ' +
-                (ownership === 'mine'
-                  ? 'bg-black/[0.06] text-ink-900 hover:bg-black/[0.09]'
-                  : 'bg-sage-500 hover:bg-sage-600 text-cream-50 shadow-sm')
-              }
-            >
-              {pending ? '…' : ownership === 'mine' ? 'Unclaim this pickup' : 'Claim this pickup'}
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={onClaim}
+                disabled={pending}
+                className={
+                  'w-full rounded-2xl py-4 text-base font-semibold transition-all duration-150 active:scale-[0.98] ' +
+                  (ownership === 'mine'
+                    ? 'bg-black/[0.06] text-ink-900 hover:bg-black/[0.09]'
+                    : 'bg-sage-500 hover:bg-sage-600 text-cream-50 shadow-sm')
+                }
+              >
+                {pending ? '…' : ownership === 'mine' ? 'Unclaim this pickup' : 'Claim this pickup'}
+              </button>
+              {ownership === 'mine' && (
+                <ShareButtons
+                  slot={slot}
+                  currentUserPhone={currentUserPhone}
+                  currentUserName={currentUserName}
+                />
+              )}
+            </div>
           )}
           {err && <div className="text-sm text-coral-600 font-medium">{err}</div>}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Build a screenshot/share-friendly multi-line summary of the pickup. Includes
+ * everything the helper needs in their pocket: kids, time, every stop with
+ * its address + door code + ganenet phone, plus the stroller reminder if
+ * Yali is in the trip. Plain text — works in WhatsApp, SMS, email body.
+ */
+function buildSummary(slot: SlotView): string {
+  const allKids = [slot.child, ...(slot.additional_children ?? [])];
+  const kidNames = allKids.map((k) => k.name).join(' → ');
+  const time = slot.pickup_time.slice(0, 5);
+  const endTime = slot.end_time?.slice(0, 5);
+  const dateLabel = (() => {
+    const d = new Date(slot.date + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  })();
+
+  const lines: string[] = [];
+  lines.push(`Pickup — ${kidNames}`);
+  lines.push(`${dateLabel}, ${time}${endTime ? ` (ends ${endTime})` : ''}`);
+  lines.push(`Activity: ${slot.title}`);
+  lines.push('');
+
+  const stops: { label: string; loc: any }[] = [];
+  if (slot.pickup_location) stops.push({ label: 'PICK UP FROM', loc: slot.pickup_location });
+  else if (slot.pickup_location_text) stops.push({ label: 'PICK UP FROM', loc: { label: slot.pickup_location_text } });
+  if (slot.via_location) stops.push({ label: 'THEN GO TO', loc: slot.via_location });
+  if (slot.destination_location) stops.push({ label: stops.length ? 'THEN DROP OFF AT' : 'DROP OFF AT', loc: slot.destination_location });
+
+  for (const s of stops) {
+    lines.push(s.label);
+    lines.push(s.loc.label);
+    const addr = [s.loc.street, s.loc.city].filter(Boolean).join(', ');
+    if (addr) lines.push(addr);
+    if (s.loc.notes) lines.push(s.loc.notes);
+    lines.push('');
+  }
+
+  const yaliInTrip = allKids.some((k) => k.name.toLowerCase() === 'yali');
+  if (yaliInTrip) {
+    lines.push('STROLLER');
+    lines.push('Yali needs a stroller. Check with Dani whether the stroller is at the Gan.');
+    lines.push('');
+  }
+
+  if (slot.notes) {
+    lines.push('NOTE');
+    lines.push(slot.notes);
+  }
+
+  return lines.join('\n').trim();
+}
+
+/**
+ * Action row shown on a claimed pickup — deep links the summary into
+ * WhatsApp (to the helper's own number, so it lands in their chat with
+ * themselves) and into the share sheet (mobile native).
+ */
+function ShareButtons({ slot, currentUserPhone, currentUserName }: {
+  slot: SlotView;
+  currentUserPhone?: string | null;
+  currentUserName?: string | null;
+}) {
+  const summary = buildSummary(slot);
+  const phone = (currentUserPhone ?? '').replace(/[^\d]/g, '');
+  // Without a phone on file, wa.me/?text= opens the share-to-someone picker.
+  const waHref = phone
+    ? `https://wa.me/${phone}?text=${encodeURIComponent(summary)}`
+    : `https://wa.me/?text=${encodeURIComponent(summary)}`;
+
+  function nativeShare(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (typeof navigator !== 'undefined' && (navigator as any).share) {
+      e.preventDefault();
+      (navigator as any).share({ title: 'Pickup details', text: summary }).catch(() => {});
+    }
+  }
+
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <a
+        href={waHref}
+        target="_blank" rel="noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="flex items-center justify-center gap-1.5 rounded-2xl bg-[#25D366] hover:bg-[#1ebe57] text-white py-3 text-sm font-semibold active:scale-[0.97] transition"
+      >
+        Send to my WhatsApp
+      </a>
+      <button
+        type="button"
+        onClick={nativeShare}
+        className="rounded-2xl bg-cream-200/60 hover:bg-cream-200 text-ink-900 py-3 text-sm font-semibold active:scale-[0.97] transition"
+      >
+        Share / save
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Stroller note + a tap-to-WhatsApp link to Dani so the helper can confirm
+ * whether the stroller is at the Gan or needs to be picked up from home first.
+ * Reads Dani's phone from NEXT_PUBLIC_DANI_PHONE; if unset, falls back to a
+ * WhatsApp share link (no recipient — user picks).
+ */
+function StrollerNote() {
+  const daniPhone = (process.env.NEXT_PUBLIC_DANI_PHONE ?? '').replace(/[^\d]/g, '');
+  const message = "Hi Dani, I'm picking up Yali today — is the stroller already at the Gan?";
+  const href = daniPhone
+    ? `https://wa.me/${daniPhone}?text=${encodeURIComponent(message)}`
+    : `https://wa.me/?text=${encodeURIComponent(message)}`;
+  return (
+    <div className="rounded-xl bg-coral-400/10 border border-coral-400/30 p-3.5 text-sm leading-relaxed">
+      <div className="text-[10px] uppercase tracking-[0.1em] text-coral-600 font-bold mb-1">Stroller</div>
+      <div className="text-ink-900">
+        Yali needs a stroller. Please check with Dani whether the stroller is at the Gan.
+      </div>
+      <a
+        href={href}
+        target="_blank" rel="noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-sage-700 hover:underline"
+      >
+        Message Dani on WhatsApp →
+      </a>
     </div>
   );
 }

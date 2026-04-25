@@ -11,6 +11,9 @@ import SlotDetailModal from './SlotDetailModal';
 interface Props {
   slot: SlotView;
   currentUserId: string;
+  /** Helper's own phone, used for the post-claim "send to my WhatsApp" deep link. */
+  currentUserPhone?: string | null;
+  currentUserName?: string | null;
   density?: 'compact' | 'roomy';
 }
 
@@ -24,7 +27,7 @@ type ClaimState = 'mine' | 'taken' | 'open';
  * server call follows in the background; if it fails we revert and surface
  * a toast. No more 500ms spinner staring contests.
  */
-export default function SlotChip({ slot, currentUserId, density = 'roomy' }: Props) {
+export default function SlotChip({ slot, currentUserId, currentUserPhone, currentUserName, density = 'roomy' }: Props) {
   const initialState: ClaimState =
     slot.assignment?.assigned_to_user_id === currentUserId ? 'mine'
       : slot.status === 'claimed' ? 'taken'
@@ -39,7 +42,10 @@ export default function SlotChip({ slot, currentUserId, density = 'roomy' }: Pro
   const ownership = optimistic;
   const claimedBy = ownership === 'mine' ? null : slot.assignment?.profile;
   const pickup = slot.pickup_location ?? (slot.pickup_location_text ? { label: slot.pickup_location_text, street: null, city: null, lat: null, lng: null } : null);
+  const via = slot.via_location ?? (slot.via_location_text ? { label: slot.via_location_text, street: null, city: null, lat: null, lng: null } : null);
   const dest = slot.destination_location ?? (slot.destination_text ? { label: slot.destination_text, street: null, city: null, lat: null, lng: null } : null);
+  const allKids = [slot.child, ...(slot.additional_children ?? [])];
+  const isCombined = allKids.length > 1;
 
   // Visual treatment per ownership state
   const surface =
@@ -71,42 +77,84 @@ export default function SlotChip({ slot, currentUserId, density = 'roomy' }: Pro
   // Press feedback
   const interactive = ownership !== 'taken';
 
-  // Modal — used by both compact and roomy modes for "see full details + claim"
+  // Modal — used by both compact and roomy modes for "see full details + claim".
+  // After a successful claim, we keep the modal open so the helper sees the
+  // confirmed-state view (with the "Send to my WhatsApp" share button) — they
+  // dismiss themselves when they've screenshotted or shared.
   const detailModal = open && (
     <SlotDetailModal
-      slot={slot} currentUserId={currentUserId} ownership={ownership} pending={pending}
+      slot={slot}
+      currentUserId={currentUserId}
+      currentUserPhone={currentUserPhone}
+      currentUserName={currentUserName}
+      ownership={ownership} pending={pending}
       claimedBy={claimedBy} err={err}
       onClose={() => setOpen(false)}
-      onClaim={() => { doClaim(); setOpen(false); }}
+      onClaim={() => { doClaim(); /* stay open — let helper share/screenshot */ }}
     />
   );
 
-  // ─── COMPACT (column views): minimal info; tap chip body to open detail modal
+  // ─── COMPACT (column views: 3-day / week): photo is the hero, info packed vertically.
+  // Layout: rectangular kid photo on top (full chip width, ~4:3), then time,
+  // kid name, activity, pickup label, and a status footer. Tap body for full
+  // detail modal.
   if (density === 'compact') {
+    const pickupLabel = pickup?.label ?? null;
     return (
       <>
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className={`relative w-full text-left rounded-xl border transition-all duration-150 active:scale-[0.985] ${surface} ${pending ? 'opacity-90' : ''}`}
+          className={`group relative w-full text-left rounded-xl border transition-all duration-150 active:scale-[0.985] overflow-hidden ${surface} ${pending ? 'opacity-90' : ''}`}
         >
-          <span
-            className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl"
-            style={{ background: slot.child.color }}
-            aria-hidden
-          />
-          <div className="pl-2.5 pr-2 py-2 space-y-1">
-            <div className="font-display text-base tabular-nums leading-tight">{prettyTime(slot.pickup_time)}</div>
-            <div className="flex items-center gap-1.5">
-              <ChildAvatar child={slot.child} size={22} />
-              <span className={`text-[10px] font-bold uppercase tracking-[0.08em] ${ownership === 'mine' ? 'opacity-90' : 'text-ink-700/70'}`}>{slot.child.name}</span>
+          {/* Photo — fills chip width, fixed aspect for consistent rhythm across columns.
+              Combined sibling trips show all kids side-by-side in equal widths. */}
+          <div className="relative w-full flex gap-0.5" style={{ aspectRatio: '4 / 3' }}>
+            {allKids.map((kid) => (
+              <div key={kid.id} className="flex-1 relative min-w-0">
+                <ChildAvatar child={kid} shape="rect" rounded="rounded-none" />
+              </div>
+            ))}
+            {/* Time chip overlaid on photo (bottom-left) so the photo can stay tall */}
+            <span className="absolute left-1.5 bottom-1.5 px-1.5 py-0.5 rounded-md bg-cream-50/95 text-ink-900 font-display text-[15px] tabular-nums leading-none shadow-sm">
+              {prettyTime(slot.pickup_time)}
+            </span>
+            {ownership === 'mine' && (
+              <span className="absolute right-1.5 top-1.5 h-5 w-5 rounded-full bg-cream-50 text-sage-700 grid place-items-center text-[11px] font-bold shadow-sm">✓</span>
+            )}
+            {ownership === 'open' && (
+              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-coral-400 ring-2 ring-cream-50" aria-hidden />
+            )}
+          </div>
+
+          {/* Text block */}
+          <div className="px-2 py-2 space-y-1">
+            <div className="text-[9px] font-bold uppercase tracking-[0.12em] leading-none flex flex-wrap gap-x-1 gap-y-0.5">
+              {allKids.map((kid, i) => (
+                <span key={kid.id} style={{ color: ownership === 'mine' ? 'rgba(253,250,243,0.85)' : kid.color }}>
+                  {kid.name}
+                  {i < allKids.length - 1 && <span className={ownership === 'mine' ? 'opacity-50' : 'text-ink-700/40'}> →</span>}
+                </span>
+              ))}
             </div>
-            <div className={`text-[13px] font-medium leading-tight truncate ${ownership === 'mine' ? 'text-cream-50' : 'text-ink-900'}`}>
+            <div className={`font-display text-[14px] leading-[1.15] tracking-tight line-clamp-2 ${ownership === 'mine' ? 'text-cream-50' : 'text-ink-900'}`}>
               {slot.title}
             </div>
-            <div className="pt-0.5 text-[10px] font-bold uppercase tracking-wide">
-              {ownership === 'mine' ? '✓ on it'
-                : ownership === 'taken' ? (claimedBy?.full_name?.split(' ')[0] ?? '—')
+            {pickupLabel && (
+              <div className={`text-[11px] leading-tight truncate ${ownership === 'mine' ? 'opacity-80' : 'text-ink-700/65'}`}>
+                from {pickupLabel}
+              </div>
+            )}
+            {slot.end_time && (
+              <div className={`text-[10px] tabular-nums ${ownership === 'mine' ? 'opacity-70' : 'text-ink-700/50'}`}>
+                ends {prettyTime(slot.end_time)}
+              </div>
+            )}
+            <div className={`pt-1 text-[9px] font-bold uppercase tracking-[0.1em] ${ownership === 'mine' ? 'opacity-95' : ''}`}>
+              {ownership === 'mine' ? "you're on it"
+                : ownership === 'taken' ? (
+                  <span className="text-ink-700/65">{claimedBy?.full_name?.split(' ')[0] ?? '—'}</span>
+                )
                 : <span className="text-coral-600">tap to claim</span>}
             </div>
           </div>
@@ -130,16 +178,22 @@ export default function SlotChip({ slot, currentUserId, density = 'roomy' }: Pro
       className={`relative rounded-2xl border transition-all duration-150 active:scale-[0.99] cursor-pointer overflow-hidden ${surface} ${pending ? 'opacity-90' : ''}`}
     >
       <div className="p-3 sm:p-4 flex gap-3 sm:gap-4 items-stretch">
-        {/* PHOTO COLUMN — hero element. Rectangle stretches to card height. */}
-        <div className="shrink-0 relative w-[38%] max-w-[180px] min-w-[120px] self-stretch min-h-[170px]">
-          <ChildAvatar
-            child={slot.child}
-            shape="rect"
-            rounded="rounded-xl"
-            ring={ownership === 'mine'}
-          />
+        {/* PHOTO COLUMN — hero element. Rectangle stretches to card height.
+            For combined sibling trips, shows all kids in a vertical stack so
+            you immediately see WHO you're picking up. */}
+        <div className={`shrink-0 relative w-[38%] max-w-[180px] min-w-[120px] self-stretch ${isCombined ? 'min-h-[200px]' : 'min-h-[170px]'} flex flex-col gap-1`}>
+          {allKids.map((kid, i) => (
+            <div key={kid.id} className="flex-1 relative min-h-0">
+              <ChildAvatar
+                child={kid}
+                shape="rect"
+                rounded="rounded-xl"
+                ring={ownership === 'mine' && i === 0}
+              />
+            </div>
+          ))}
           {ownership === 'mine' && (
-            <span className="absolute -bottom-1.5 -right-1.5 h-7 w-7 rounded-full bg-cream-50 text-sage-700 grid place-items-center text-sm font-bold shadow-sm border border-sage-600/20">
+            <span className="absolute -bottom-1.5 -right-1.5 h-7 w-7 rounded-full bg-cream-50 text-sage-700 grid place-items-center text-sm font-bold shadow-sm border border-sage-600/20 z-10">
               ✓
             </span>
           )}
@@ -159,20 +213,27 @@ export default function SlotChip({ slot, currentUserId, density = 'roomy' }: Pro
             )}
           </div>
 
-          {/* Kid name (small caps) + activity */}
+          {/* Kid name(s) (small caps) + activity */}
           <div className="space-y-0.5">
-            <div
-              className="text-[10px] font-bold uppercase tracking-[0.14em]"
-              style={{ color: ownership === 'mine' ? 'rgba(253,250,243,0.85)' : slot.child.color }}
-            >
-              {slot.child.name}
+            <div className="text-[10px] font-bold uppercase tracking-[0.14em] flex flex-wrap gap-x-1.5 gap-y-0.5">
+              {allKids.map((kid, i) => (
+                <span
+                  key={kid.id}
+                  style={{ color: ownership === 'mine' ? 'rgba(253,250,243,0.85)' : kid.color }}
+                >
+                  {kid.name}
+                  {i < allKids.length - 1 && (
+                    <span className={ownership === 'mine' ? 'opacity-50' : 'text-ink-700/40'}> →</span>
+                  )}
+                </span>
+              ))}
             </div>
             <div className={`font-display text-xl sm:text-2xl leading-[1.15] tracking-tight ${ownership === 'mine' ? 'text-cream-50' : 'text-ink-900'}`}>
               {slot.title}
             </div>
           </div>
 
-          {/* Locations */}
+          {/* Locations — pickup → via → destination */}
           <div className={`text-sm space-y-1 pt-0.5 ${ownership === 'mine' ? 'opacity-95' : ''}`}>
             {pickup ? (
               <LocLine label="from" loc={pickup} mine={ownership === 'mine'} />
@@ -182,6 +243,7 @@ export default function SlotChip({ slot, currentUserId, density = 'roomy' }: Pro
                 <span className="font-medium">Pickup location not set</span>
               </div>
             )}
+            {via && <LocLine label="via" loc={via} mine={ownership === 'mine'} />}
             {dest && <LocLine label="to" loc={dest} mine={ownership === 'mine'} />}
           </div>
 
@@ -255,11 +317,9 @@ function LocLine({ label, loc, mine }: { label: string; loc: any; mine: boolean 
           )}
         </span>
       </div>
-      {loc.notes && (
-        <div className={`text-[12.5px] mt-0.5 ml-[44px] ${mine ? 'opacity-80' : 'text-ink-700/65'}`}>
-          {tellable(loc.notes)}
-        </div>
-      )}
+      {/* Note: location.notes (door codes, ganenet phone, teacher contact) are
+          intentionally NOT shown on the chip — they appear only after the
+          helper taps into the detail modal. Keeps the schedule scan-clean. */}
     </div>
   );
 }

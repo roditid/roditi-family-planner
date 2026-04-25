@@ -10,6 +10,8 @@ interface Props {
   anchor: Date;
   slots: SlotView[];
   currentUserId: string;
+  currentUserPhone?: string | null;
+  currentUserName?: string | null;
   onlyMine?: boolean;
 }
 
@@ -20,7 +22,7 @@ interface Props {
  *  - 3-day:    three day-columns side-by-side
  *  - week:     seven day-columns side-by-side (horizontal scroll on mobile)
  */
-export default function CalendarView({ view, anchor, slots, currentUserId, onlyMine }: Props) {
+export default function CalendarView({ view, anchor, slots, currentUserId, currentUserPhone, currentUserName, onlyMine }: Props) {
   const days = daysForView(view, anchor);
   const filtered = onlyMine
     ? slots.filter((s) => s.assignment?.assigned_to_user_id === currentUserId)
@@ -41,10 +43,10 @@ export default function CalendarView({ view, anchor, slots, currentUserId, onlyM
       <CalendarToolbar view={view} anchor={anchor} rangeLabel={rangeLabel} />
 
       <SwipeArea view={view} anchor={anchor}>
-        {view === 'schedule' && <ScheduleLayout days={days} byDay={byDay} currentUserId={currentUserId} />}
-        {view === 'day'      && <ScheduleLayout days={days} byDay={byDay} currentUserId={currentUserId} />}
-        {view === '3day'     && <ColumnsLayout days={days} byDay={byDay} currentUserId={currentUserId} cols={3} />}
-        {view === 'week'     && <ColumnsLayout days={days} byDay={byDay} currentUserId={currentUserId} cols={7} />}
+        {view === 'schedule' && <ScheduleLayout days={days} byDay={byDay} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} />}
+        {view === 'day'      && <ScheduleLayout days={days} byDay={byDay} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} />}
+        {view === '3day'     && <ColumnsLayout days={days} byDay={byDay} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} cols={3} />}
+        {view === 'week'     && <ColumnsLayout days={days} byDay={byDay} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} cols={7} />}
       </SwipeArea>
 
       {filtered.length === 0 && (
@@ -64,7 +66,7 @@ export default function CalendarView({ view, anchor, slots, currentUserId, onlyM
 // Schedule + Day: vertical, day-by-day list
 // ─────────────────────────────────────────────────────────────────────
 
-function ScheduleLayout({ days, byDay, currentUserId }: { days: Date[]; byDay: Map<string, SlotView[]>; currentUserId: string }) {
+function ScheduleLayout({ days, byDay, currentUserId, currentUserPhone, currentUserName }: { days: Date[]; byDay: Map<string, SlotView[]>; currentUserId: string; currentUserPhone?: string | null; currentUserName?: string | null }) {
   return (
     <div className="space-y-5">
       {days.map((d) => {
@@ -86,7 +88,7 @@ function ScheduleLayout({ days, byDay, currentUserId }: { days: Date[]; byDay: M
             ) : (
               <div className="space-y-2">
                 {todays.map((s) => (
-                  <SlotChip key={s.id} slot={s} currentUserId={currentUserId} density="roomy" />
+                  <SlotChip key={s.id} slot={s} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} density="roomy" />
                 ))}
               </div>
             )}
@@ -103,8 +105,8 @@ function ScheduleLayout({ days, byDay, currentUserId }: { days: Date[]; byDay: M
 // ─────────────────────────────────────────────────────────────────────
 
 function ColumnsLayout({
-  days, byDay, currentUserId, cols,
-}: { days: Date[]; byDay: Map<string, SlotView[]>; currentUserId: string; cols: 3 | 7 }) {
+  days, byDay, currentUserId, currentUserPhone, currentUserName, cols,
+}: { days: Date[]; byDay: Map<string, SlotView[]>; currentUserId: string; currentUserPhone?: string | null; currentUserName?: string | null; cols: 3 | 7 }) {
   // 3-day: 3 cols always fit on phone (~120px each)
   // Week: 7 cols at min 130px each → scrolls on phones with snap-x
   const minColWidth = cols === 3 ? 100 : 130;
@@ -128,7 +130,7 @@ function ColumnsLayout({
                   <EmptyDay />
                 ) : (
                   todays.map((s) => (
-                    <SlotChip key={s.id} slot={s} currentUserId={currentUserId} density="compact" />
+                    <SlotChip key={s.id} slot={s} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} density="compact" />
                   ))
                 )}
               </div>

@@ -66,3 +66,62 @@ export function renderReminder(slot: SlotView) {
     body: lines.join('\n'),
   };
 }
+
+/**
+ * Render a "you've claimed this pickup" confirmation. Includes EVERY stop
+ * (pickup → via → destination) with addresses, door codes, ganenet phones,
+ * and the stroller note when Yali is in the trip. Designed so the helper
+ * can read the email on their phone in lieu of the screenshot.
+ */
+export function renderClaimConfirmation(slot: SlotView, helperName: string | null) {
+  const allKids = [slot.child, ...(slot.additional_children ?? [])];
+  const kidNames = allKids.map((k) => k.name).join(' → ');
+  const time = slot.pickup_time.slice(0, 5);
+  const dateLabel = (() => {
+    const d = new Date(slot.date + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  })();
+
+  const stopBlocks: string[] = [];
+  const fmtStop = (label: string, loc: any) => {
+    if (!loc) return null;
+    const addr = [loc.street, loc.city].filter(Boolean).join(', ');
+    const parts = [`${label}`, loc.label];
+    if (addr) parts.push(addr);
+    if (loc.notes) parts.push(loc.notes);
+    return parts.join('\n');
+  };
+  const pickup = fmtStop('PICK UP FROM', slot.pickup_location);
+  const via = slot.via_location ? fmtStop('THEN GO TO', slot.via_location) : null;
+  const dest = fmtStop(via ? 'THEN DROP OFF AT' : 'DROP OFF AT', slot.destination_location);
+  for (const s of [pickup, via, dest]) if (s) stopBlocks.push(s);
+
+  const yaliInTrip = allKids.some((k) => k.name.toLowerCase() === 'yali');
+
+  const lines: string[] = [];
+  lines.push(`✓ You're on this pickup, ${(helperName ?? '').split(' ')[0] || 'thanks'}!`);
+  lines.push('');
+  lines.push(`${kidNames} — ${slot.title}`);
+  lines.push(`${dateLabel} at ${time}`);
+  lines.push('');
+  for (const block of stopBlocks) {
+    lines.push(block);
+    lines.push('');
+  }
+  if (yaliInTrip) {
+    lines.push('STROLLER');
+    lines.push('Yali needs a stroller. Please check with Dani whether the stroller is at the Gan.');
+    lines.push('');
+  }
+  if (slot.notes) {
+    lines.push('NOTE');
+    lines.push(slot.notes);
+    lines.push('');
+  }
+  lines.push('— Pickup Planner');
+
+  return {
+    subject: `Pickup confirmed: ${kidNames} on ${dateLabel} at ${time}`,
+    body: lines.join('\n').trim(),
+  };
+}

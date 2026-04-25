@@ -34,9 +34,9 @@ const LOCATIONS: Location[] = [
 ];
 
 const CHILDREN: Child[] = [
-  { id: 'c-adam', household_id: HOUSEHOLD_ID, name: 'Adam', color: '#6BA3C5', school_name: 'Tichon Hadash',  school_location_id: 'loc-school', home_location_id: 'loc-home', notes: null, photo_url: null },
-  { id: 'c-liam', household_id: HOUSEHOLD_ID, name: 'Liam', color: '#7FA87D', school_name: 'Tichon Hadash',  school_location_id: 'loc-school', home_location_id: 'loc-home', notes: null, photo_url: null },
-  { id: 'c-yali', household_id: HOUSEHOLD_ID, name: 'Yali', color: '#E89070', school_name: 'Gan Shoshanim',  school_location_id: 'loc-gan',    home_location_id: 'loc-home', notes: null, photo_url: null },
+  { id: 'c-adam', household_id: HOUSEHOLD_ID, name: 'Adam', color: '#6BA3C5', school_name: 'Tichon Hadash',  school_location_id: 'loc-school', home_location_id: 'loc-home', gan_dismissal_time: null, notes: null, photo_url: null },
+  { id: 'c-liam', household_id: HOUSEHOLD_ID, name: 'Liam', color: '#7FA87D', school_name: 'Tichon Hadash',  school_location_id: 'loc-school', home_location_id: 'loc-home', gan_dismissal_time: null, notes: null, photo_url: null },
+  { id: 'c-yali', household_id: HOUSEHOLD_ID, name: 'Yali', color: '#E89070', school_name: 'Gan Shoshanim',  school_location_id: 'loc-gan',    home_location_id: 'loc-home', gan_dismissal_time: null, notes: null, photo_url: null },
 ];
 
 const ACTIVITIES: Activity[] = [
@@ -91,9 +91,12 @@ function buildSlots(): PickupSlot[] {
       pickup_time: s.time + ':00',
       end_time: s.end ? s.end + ':00' : null,
       pickup_location_id: s.pickup,
+      via_location_id: null,
       destination_location_id: s.dest,
       pickup_location_text: null,
+      via_location_text: null,
       destination_text: null,
+      additional_child_ids: [],
       notes: s.notes,
       parent_notes: null,
       status: s.claimedBy ? 'claimed' : 'unclaimed',
@@ -163,7 +166,7 @@ function hydrate(s: PickupSlot): SlotView {
         profile: getUser(a.user_id),
       }
     : null;
-  return { ...s, child, activity, pickup_location: pickupLoc, destination_location: destLoc, assignment };
+  return { ...s, child, additional_children: [], activity, pickup_location: pickupLoc, via_location: null, destination_location: destLoc, assignment };
 }
 
 export function claimSlot(slotId: string, userId: string): { ok: boolean; error?: string } {
@@ -244,9 +247,12 @@ export function createSlot(input: {
     pickup_time: input.pickup_time.length === 5 ? input.pickup_time + ':00' : input.pickup_time,
     end_time: input.end_time ? (input.end_time.length === 5 ? input.end_time + ':00' : input.end_time) : null,
     pickup_location_id: input.pickup_location_id ?? null,
+    via_location_id: null,
     destination_location_id: input.destination_location_id ?? null,
     pickup_location_text: null,
+    via_location_text: null,
     destination_text: null,
+    additional_child_ids: [],
     notes: input.notes ?? null,
     parent_notes: null,
     status: 'unclaimed',

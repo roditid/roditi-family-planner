@@ -83,7 +83,7 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
   // Load children + activities for matching.
   const { data: children } = await sb
     .from('children')
-    .select('id, name, color, school_location_id, home_location_id, household_id')
+    .select('id, name, color, school_location_id, home_location_id, gan_dismissal_time, household_id')
     .eq('household_id', householdId);
 
   const { data: activities } = await sb
@@ -137,6 +137,20 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
       // calendar title ("Ninja - Adam") so the UI shows the cleaner version.
       const displayTitle = match.activityTitle ?? title;
 
+      // Slot model: pickup = child's Gan, via = activity location, dest = Home.
+      // The helper picks the kid up from the Gan at dismissal time, walks to
+      // the activity (the "via" stop), waits, then walks them home.
+      //
+      // pickup_time: prefer the kid's gan_dismissal_time (so the helper isn't
+      // late picking the kid up at the Gan). Fall back to event start time if
+      // the kid has no Gan dismissal recorded yet.
+      const childRecord = match.child as any;
+      const ganDismissal = childRecord.gan_dismissal_time as string | null;
+      const slotPickupTime = ganDismissal ?? pickupTime;
+      const slotPickupLoc = childRecord.school_location_id ?? match.activity?.default_pickup_location_id ?? null;
+      const slotViaLoc = match.activity?.default_destination_location_id ?? null;
+      const slotDestLoc = childRecord.home_location_id ?? null;
+
       const { error } = await sb.from('pickup_slots').upsert({
         household_id: householdId,
         child_id: match.child.id,
@@ -145,11 +159,12 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
         source: 'calendar',
         title: displayTitle,
         date,
-        pickup_time: pickupTime,
+        pickup_time: slotPickupTime,
         end_time: endTime,
-        pickup_location_id: match.activity?.default_pickup_location_id ?? match.child.school_location_id ?? null,
-        destination_location_id: match.activity?.default_destination_location_id ?? match.child.home_location_id ?? null,
-        pickup_location_text: ev.location ?? null,  // preserve raw for display if no structured
+        pickup_location_id: slotPickupLoc,
+        via_location_id: slotViaLoc,
+        destination_location_id: slotDestLoc,
+        pickup_location_text: ev.location ?? null,  // preserve raw event location as fallback
         notes: match.activity?.notes ?? null,
       }, { onConflict: 'source_event_id' });
       if (!error) slotsCreated++;

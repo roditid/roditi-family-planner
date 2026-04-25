@@ -71,6 +71,8 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
         anchor={anchor}
         slots={slots}
         currentUserId={ctx.user.id}
+        currentUserPhone={ctx.profile?.phone_number ?? null}
+        currentUserName={ctx.profile?.full_name ?? null}
         onlyMine={onlyMine}
       />
 

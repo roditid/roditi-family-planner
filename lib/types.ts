@@ -49,6 +49,8 @@ export interface Child {
   school_name: string | null;
   school_location_id: string | null;
   home_location_id: string | null;
+  /** When this kid is dismissed from their Gan, used for default Gan→Home pickups. */
+  gan_dismissal_time: string | null;
   photo_url: string | null;
   notes: string | null;
 }
@@ -78,9 +80,13 @@ export interface PickupSlot {
   pickup_time: string;   // HH:mm:ss
   end_time: string | null;
   pickup_location_id: string | null;
+  via_location_id: string | null;
   destination_location_id: string | null;
   pickup_location_text: string | null;
+  via_location_text: string | null;
   destination_text: string | null;
+  /** Other kids in this trip after the primary child_id, in pickup-order. */
+  additional_child_ids: string[];
   notes: string | null;
   parent_notes: string | null;
   status: SlotStatus;
@@ -101,8 +107,11 @@ export interface SlotAssignment {
 // Hydrated slot — what the UI actually consumes.
 export interface SlotView extends PickupSlot {
   child: Child;
+  /** Combined-trip siblings (in pickup-order). Empty when this is a solo trip. */
+  additional_children: Child[];
   activity: Activity | null;
   pickup_location: Location | null;
+  via_location: Location | null;
   destination_location: Location | null;
   assignment: (SlotAssignment & { profile: Profile | null }) | null;
 }

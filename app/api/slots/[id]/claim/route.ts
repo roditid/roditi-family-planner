@@ -4,6 +4,7 @@ import { demoMode, demoCurrentUser } from '@/lib/demo-session';
 import { claimSlot } from '@/lib/demo-store';
 import { recordEvent } from '@/lib/events';
 import { DEMO } from '@/lib/demo-store';
+import { emailProvider, renderClaimConfirmation } from '@/lib/notify';
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   if (demoMode()) {
@@ -31,13 +32,47 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
   await sb.from('pickup_slots').update({ status: 'claimed' }).eq('id', params.id);
 
-  // Find household for the event
-  const { data: slot } = await sb.from('pickup_slots').select('household_id').eq('id', params.id).maybeSingle();
+  // Hydrate the slot enough to send a confirmation email + log the event.
+  const { data: slot } = await sb
+    .from('pickup_slots')
+    .select(`
+      *,
+      child:children(*),
+      activity:activities(*),
+      pickup_location:pickup_location_id(*),
+      via_location:via_location_id(*),
+      destination_location:destination_location_id(*)
+    `)
+    .eq('id', params.id)
+    .maybeSingle();
+
   if (slot?.household_id) {
     await recordEvent({
       householdId: slot.household_id, slotId: params.id,
       actorUserId: user.id, subjectUserId: user.id, kind: 'claimed',
     });
   }
+
+  // Send a confirmation email to the helper. Best-effort; we don't want to
+  // fail the claim if the email provider is down or the helper has no email.
+  try {
+    const { data: profile } = await sb.from('profiles').select('full_name, email, email_enabled').eq('id', user.id).maybeSingle();
+    if (slot && profile?.email && profile?.email_enabled !== false) {
+      // Stitch additional_children for the formatter
+      const extraIds = (slot.additional_child_ids as string[] | null) ?? [];
+      let additional_children: any[] = [];
+      if (extraIds.length > 0) {
+        const { data: kids } = await sb.from('children').select('*').in('id', extraIds);
+        additional_children = kids ?? [];
+      }
+      const hydrated = { ...slot, additional_children };
+      const { subject, body } = renderClaimConfirmation(hydrated as any, profile.full_name ?? null);
+      await emailProvider.send({ to: profile.email, subject, body });
+    }
+  } catch (e) {
+    // Log only — do not surface email errors to the claim caller.
+    console.error('claim confirmation email failed', e);
+  }
+
   return NextResponse.json({ ok: true });
 }
