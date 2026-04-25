@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getSessionContext } from '@/lib/permissions';
+import NextPickupBanner from '@/components/NextPickupBanner';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getSessionContext();
@@ -22,14 +23,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </nav>
         </div>
       </header>
+      {/* "What's next" strip — appears under the header on every authenticated
+          page so the helper always knows their upcoming pickup at a glance. */}
+      <NextPickupBanner householdId={ctx.household.id} userId={ctx.user.id} isAdmin={isAdmin} />
       <main className="flex-1 mx-auto w-full max-w-7xl px-3 sm:px-5 py-4 md:py-8">{children}</main>
-      <footer className="border-t border-black/5 py-6 text-center text-xs text-ink-700/50">
-        {ctx.household.name} · signed in as {ctx.profile?.full_name}{' '}
-        {isAdmin && <span className="chip bg-sage-500/10 text-sage-700 ml-1">Admin</span>}
-        {' · '}
-        <form action="/api/auth/signout" method="post" className="inline">
-          <button className="underline underline-offset-2">Sign out</button>
-        </form>
+      <footer className="border-t border-black/5 py-5 mt-8">
+        <div className="mx-auto max-w-7xl px-3 sm:px-5 flex items-center justify-between flex-wrap gap-2 text-xs">
+          <div className="text-ink-700/50">
+            <span className="font-medium text-ink-700/65">{ctx.household.name}</span>
+            <span className="opacity-60"> · {ctx.profile?.full_name}</span>
+            {isAdmin && <span className="ml-2 chip bg-sage-500/10 text-sage-700 text-[10px] px-2 py-0.5">Admin</span>}
+          </div>
+          <form action="/api/auth/signout" method="post">
+            <button className="text-ink-700/50 hover:text-ink-900 underline underline-offset-2">Sign out</button>
+          </form>
+        </div>
       </footer>
     </div>
   );

@@ -153,6 +153,27 @@ export async function createSlotAction(formData: FormData) {
 }
 
 // ----------------------------------------------------------------------
+// Slot notes — quick edit from the detail modal. Lets Paula add a one-off
+// reminder ("water bottle stays at Gan today", "Levanah will pick up,
+// please bring her keys") to any single pickup at any time.
+// ----------------------------------------------------------------------
+export async function updateSlotNotesAction(formData: FormData) {
+  const ctx = await requireAdmin();
+  const slotId = String(formData.get('slot_id') ?? '');
+  const notes = strOrNull(formData.get('notes'));
+  if (!slotId) return;
+  if (demoMode()) {
+    // demo store doesn't support note edit; ignore
+  } else {
+    const sb = supabaseServer();
+    await sb.from('pickup_slots').update({ notes, updated_at: new Date().toISOString() }).eq('id', slotId);
+  }
+  revalidatePath('/admin');
+  revalidatePath('/admin/unassigned');
+  revalidatePath('/my-pickups');
+}
+
+// ----------------------------------------------------------------------
 // Assignment override
 // ----------------------------------------------------------------------
 export async function reassignSlotAction(formData: FormData) {

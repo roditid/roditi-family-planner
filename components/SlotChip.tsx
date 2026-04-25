@@ -15,6 +15,8 @@ interface Props {
   /** Helper's own phone, used for the post-claim "send to my WhatsApp" deep link. */
   currentUserPhone?: string | null;
   currentUserName?: string | null;
+  /** Surfaces the inline note editor on the detail modal when true. */
+  isAdmin?: boolean;
   density?: 'compact' | 'roomy';
 }
 
@@ -28,7 +30,7 @@ type ClaimState = 'mine' | 'taken' | 'open';
  * server call follows in the background; if it fails we revert and surface
  * a toast. No more 500ms spinner staring contests.
  */
-export default function SlotChip({ slot, currentUserId, currentUserPhone, currentUserName, density = 'roomy' }: Props) {
+export default function SlotChip({ slot, currentUserId, currentUserPhone, currentUserName, isAdmin, density = 'roomy' }: Props) {
   const initialState: ClaimState =
     slot.assignment?.assigned_to_user_id === currentUserId ? 'mine'
       : slot.status === 'claimed' ? 'taken'
@@ -91,6 +93,7 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
       currentUserId={currentUserId}
       currentUserPhone={currentUserPhone}
       currentUserName={currentUserName}
+      isAdmin={isAdmin}
       ownership={ownership} pending={pending}
       claimedBy={claimedBy} err={err}
       onClose={() => setOpen(false)}

@@ -80,6 +80,7 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
         currentUserId={ctx.user.id}
         currentUserPhone={ctx.profile?.phone_number ?? null}
         currentUserName={ctx.profile?.full_name ?? null}
+        isAdmin={ctx.role === 'admin'}
         onlyMine={onlyMine}
       />
 

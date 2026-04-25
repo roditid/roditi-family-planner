@@ -10,7 +10,18 @@
 }
 
 html, body { background: var(--bg); color: var(--ink); }
-body { font-size: 17px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+body {
+  font-size: 17px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  /* Subtle paper-fiber texture — adds warmth without being noisy. Two
+     low-opacity radial gradients give the cream a hint of grain that
+     reads on light backgrounds without ever competing with content. */
+  background-image:
+    radial-gradient(ellipse 600px 400px at 12% 8%, rgba(232, 144, 112, 0.045), transparent 60%),
+    radial-gradient(ellipse 700px 500px at 88% 92%, rgba(92, 122, 95, 0.035), transparent 60%);
+  background-attachment: fixed;
+}
 
 /* Make tap targets generous for older users */
 button, a { touch-action: manipulation; }
@@ -48,13 +59,31 @@ button, a { touch-action: manipulation; }
   }
 }
 
-/* Subtle entrance animation for newly-rendered cards */
+/* Entrance animations — used to give the schedule view a sense of the
+   day-by-day list assembling itself, rather than appearing all at once. */
 @keyframes pp-fade-in {
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+@keyframes pp-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 @layer utilities {
   .pp-fade { animation: pp-fade-in 200ms ease-out both; }
+  .pp-rise { animation: pp-rise 360ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  /* Stagger helpers for sibling lists — each row delays a hair after the
+     previous so the agenda flows in like a deck of cards being laid down. */
+  .pp-stagger > * { animation: pp-rise 380ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .pp-stagger > *:nth-child(1) { animation-delay: 0ms; }
+  .pp-stagger > *:nth-child(2) { animation-delay: 40ms; }
+  .pp-stagger > *:nth-child(3) { animation-delay: 80ms; }
+  .pp-stagger > *:nth-child(4) { animation-delay: 120ms; }
+  .pp-stagger > *:nth-child(5) { animation-delay: 160ms; }
+  .pp-stagger > *:nth-child(6) { animation-delay: 200ms; }
+  .pp-stagger > *:nth-child(7) { animation-delay: 240ms; }
+  .pp-stagger > *:nth-child(8) { animation-delay: 280ms; }
+  .pp-stagger > *:nth-child(n+9) { animation-delay: 320ms; }
 }
 
 /* Reduce motion support */

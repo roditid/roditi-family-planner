@@ -1,24 +1,30 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import type { SlotView } from '@/lib/types';
 import { mapsHref } from '@/lib/maps';
 import { prettyTime } from '@/lib/week';
 import { tellable } from '@/lib/phones';
 import ChildAvatar from './ChildAvatar';
+import { updateSlotNotesAction } from '@/app/_actions/admin';
 
 /**
  * Bottom-sheet (mobile) / centered dialog (desktop) showing the full slot
  * details: pickup + drop-off addresses, hours, door codes, ganenet
  * contacts (with tap-to-call), notes, and the Claim/Unclaim action.
+ *
+ * Admins get an inline notes editor (small "edit" affordance on the note
+ * card) so Paula can drop a one-off reminder onto any pickup at any time.
  */
 export default function SlotDetailModal({
-  slot, currentUserId, currentUserPhone, currentUserName, ownership, pending, claimedBy, err, onClose, onClaim,
+  slot, currentUserId, currentUserPhone, currentUserName, isAdmin, ownership, pending, claimedBy, err, onClose, onClaim,
 }: {
   slot: SlotView;
   currentUserId: string;
   currentUserPhone?: string | null;
   currentUserName?: string | null;
+  isAdmin?: boolean;
   ownership: 'mine' | 'taken' | 'open';
   pending: boolean;
   claimedBy: any;
@@ -118,13 +124,8 @@ export default function SlotDetailModal({
           {/* Stroller note — only when Yali is in the trip */}
           {yaliInTrip && <StrollerNote />}
 
-          {/* Notes (slot-level) */}
-          {slot.notes && (
-            <div className="rounded-xl bg-cream-200/40 p-3 text-sm">
-              <div className="text-[10px] uppercase tracking-wider text-ink-700/55 font-semibold mb-1">Note for the helper</div>
-              <div className="text-ink-700/85">{tellable(slot.notes)}</div>
-            </div>
-          )}
+          {/* Notes (slot-level) — visible to everyone, editable by admins */}
+          <SlotNoteCard slot={slot} canEdit={!!isAdmin} />
 
           {/* Status row — only show for 'taken' or 'open' ('mine' has the banner above) */}
           {ownership !== 'mine' && (
@@ -170,6 +171,84 @@ export default function SlotDetailModal({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Slot-level note card. Read-only for helpers, editable for admins.
+ * The edit affordance is a small pencil that swaps the card for a textarea
+ * + Save / Cancel. Notes show up immediately for everyone after save.
+ */
+function SlotNoteCard({ slot, canEdit }: { slot: SlotView; canEdit: boolean }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(slot.notes ?? '');
+  const [pending, start] = useTransition();
+  const router = useRouter();
+
+  if (!editing) {
+    if (!slot.notes && !canEdit) return null;
+    return (
+      <div className="rounded-xl bg-cream-200/40 p-3.5 text-sm relative">
+        <div className="flex items-center justify-between mb-1">
+          <div className="text-[10px] uppercase tracking-wider text-ink-700/55 font-semibold">
+            {slot.notes ? 'Note for the helper' : 'No note yet'}
+          </div>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+              className="text-xs text-sage-700 font-semibold hover:underline"
+            >
+              {slot.notes ? 'Edit' : '+ Add note'}
+            </button>
+          )}
+        </div>
+        {slot.notes && <div className="text-ink-700/85 leading-relaxed">{tellable(slot.notes)}</div>}
+      </div>
+    );
+  }
+
+  function save(e: React.FormEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const fd = new FormData();
+    fd.set('slot_id', slot.id);
+    fd.set('notes', draft);
+    start(async () => {
+      await updateSlotNotesAction(fd);
+      setEditing(false);
+      router.refresh();
+    });
+  }
+
+  return (
+    <form onSubmit={save} onClick={(e) => e.stopPropagation()} className="rounded-xl bg-cream-200/40 p-3.5 text-sm space-y-2">
+      <div className="text-[10px] uppercase tracking-wider text-ink-700/55 font-semibold">Note for the helper</div>
+      <textarea
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        rows={3}
+        placeholder="e.g. Yali needs sun hat today. Levanah will return the keys after."
+        className="w-full rounded-lg border border-black/10 bg-cream-50 p-2.5 text-sm leading-relaxed focus:outline-none focus:border-sage-500 focus:ring-2 focus:ring-sage-500/20"
+      />
+      <div className="flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => { setEditing(false); setDraft(slot.notes ?? ''); }}
+          className="px-3 py-1.5 text-xs font-semibold text-ink-700/65 hover:text-ink-900"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={pending}
+          className="px-3.5 py-1.5 rounded-lg bg-sage-500 hover:bg-sage-600 text-cream-50 text-xs font-semibold disabled:opacity-60"
+        >
+          {pending ? 'Saving…' : 'Save note'}
+        </button>
+      </div>
+    </form>
   );
 }
 
