@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import type { SlotView } from '@/lib/types';
 import { mapsHref } from '@/lib/maps';
 import { prettyTime } from '@/lib/week';
+import { tellable } from '@/lib/phones';
 
 interface Props {
   slot: SlotView;
@@ -124,7 +125,7 @@ export default function SlotChip({ slot, currentUserId, density = 'roomy' }: Pro
         {slot.notes && (
           <div className={`text-sm flex gap-2 ${ownership === 'mine' ? 'opacity-95' : 'text-ink-700/85'}`}>
             <span className="opacity-70 shrink-0">📝</span>
-            <span>{slot.notes}</span>
+            <span>{tellable(slot.notes)}</span>
           </div>
         )}
 
@@ -171,23 +172,30 @@ function LocLine({ label, loc, mine }: { label: string; loc: any; mine: boolean 
   const href = mapsHref(loc);
   const addr = [loc.street, loc.city].filter(Boolean).join(', ');
   return (
-    <div className="flex items-baseline gap-1.5 leading-snug">
-      <span className={`text-[11px] uppercase tracking-wider font-semibold shrink-0 mt-0.5 ${mine ? 'opacity-65' : 'text-ink-700/50'}`}>
-        {label}
-      </span>
-      <span className="flex-1 min-w-0">
-        <span className="font-medium">{loc.label}</span>
-        {addr && <span className={`ml-1.5 ${mine ? 'opacity-75' : 'text-ink-700/60'}`}>· {addr}</span>}
-        {href && (
-          <a
-            href={href} target="_blank" rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className={`ml-2 text-xs ${mine ? 'underline opacity-90' : 'text-sage-600 hover:underline'}`}
-          >
-            map
-          </a>
-        )}
-      </span>
+    <div className="leading-snug">
+      <div className="flex items-baseline gap-1.5">
+        <span className={`text-[11px] uppercase tracking-wider font-semibold shrink-0 mt-0.5 ${mine ? 'opacity-65' : 'text-ink-700/50'}`}>
+          {label}
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className="font-medium">{loc.label}</span>
+          {addr && <span className={`ml-1.5 ${mine ? 'opacity-75' : 'text-ink-700/60'}`}>· {addr}</span>}
+          {href && (
+            <a
+              href={href} target="_blank" rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className={`ml-2 text-xs ${mine ? 'underline opacity-90' : 'text-sage-600 hover:underline'}`}
+            >
+              map
+            </a>
+          )}
+        </span>
+      </div>
+      {loc.notes && (
+        <div className={`text-[12.5px] mt-0.5 ml-[44px] ${mine ? 'opacity-80' : 'text-ink-700/65'}`}>
+          {tellable(loc.notes)}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabase/client';
 
 // Set NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true after configuring Google in
@@ -10,7 +11,8 @@ const GOOGLE_ENABLED = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === 'true';
 
 export default function LoginPage() {
   const sb = supabaseBrowser();
-  const [email, setEmail] = useState('');
+  const params = useSearchParams();
+  const [email, setEmail] = useState(params.get('email') ?? '');
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
