@@ -39,5 +39,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/|favicon|api/cron|api/calendar/connect/callback).*)'],
+  matcher: ['/((?!_next/|favicon|api/cron|api/calendar/connect/callback|auth/callback).*)'],
 };
