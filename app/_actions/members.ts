@@ -19,6 +19,7 @@ export async function updateHelperAction(formData: FormData) {
   const email = strOrNull(formData.get('email'));
   const full_name = strOrNull(formData.get('full_name'));
   const helper_kind = strOrNull(formData.get('helper_kind')) as 'grandparent' | 'nanny' | 'other' | null;
+  const phone_number = strOrNull(formData.get('phone_number'));
 
   if (demoMode()) {
     revalidatePath('/admin/helpers');
@@ -44,6 +45,15 @@ export async function updateHelperAction(formData: FormData) {
   }
   if (full_name !== null) profileUpdate.full_name = full_name;
   if (helper_kind !== null) profileUpdate.helper_kind = helper_kind;
+  // Phone gets stored without spaces / dashes / parens; clients render it
+  // however they want. We accept any input the user types — wa.me handles
+  // E.164 with no '+' fine.
+  if (phone_number !== null) {
+    profileUpdate.phone_number = phone_number.replace(/[^\d+]/g, '');
+  } else if (formData.has('phone_number')) {
+    // Empty string submitted — clear the phone
+    profileUpdate.phone_number = null;
+  }
 
   if (Object.keys(profileUpdate).length) {
     await sb.from('profiles').update(profileUpdate).eq('id', userId);

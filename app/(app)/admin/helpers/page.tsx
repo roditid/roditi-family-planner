@@ -5,6 +5,7 @@ import { supabaseServer } from '@/lib/supabase/server';
 import { demoMode } from '@/lib/demo-session';
 import { allUsers } from '@/lib/demo-store';
 import CopyLink from '@/components/CopyLink';
+import WhatsAppButton from '@/components/WhatsAppButton';
 import { updateHelperAction, sendOneInviteAction, regenerateTokenAction } from '@/app/_actions/members';
 
 export const dynamic = 'force-dynamic';
@@ -13,6 +14,7 @@ type Row = {
   id: string;
   full_name: string;
   email: string | null;
+  phone_number: string | null;
   helper_kind: string | null;
   magic_token: string | null;
   last_invite_sent_at: string | null;
@@ -27,7 +29,7 @@ export default async function HelpersAdmin() {
   let members: Row[] = [];
   if (demoMode()) {
     members = allUsers().map((u: any) => ({
-      id: u.id, full_name: u.full_name, email: u.email,
+      id: u.id, full_name: u.full_name, email: u.email, phone_number: u.phone_number,
       helper_kind: u.helper_kind, magic_token: u.magic_token,
       last_invite_sent_at: null, email_enabled: u.email_enabled, role: u.role,
     }));
@@ -35,7 +37,7 @@ export default async function HelpersAdmin() {
     const sb = supabaseServer();
     const { data } = await sb
       .from('household_members')
-      .select('helper_kind, role, profiles:user_id(id, full_name, email, magic_token, last_invite_sent_at, email_enabled)')
+      .select('helper_kind, role, profiles:user_id(id, full_name, email, phone_number, magic_token, last_invite_sent_at, email_enabled)')
       .eq('household_id', ctx.household!.id);
     members = (data ?? []).map((m: any) => ({ ...m.profiles, helper_kind: m.helper_kind, role: m.role }));
   }
@@ -142,6 +144,10 @@ function HelperCard({ h, baseUrl }: { h: Row; baseUrl: string }) {
           <input name="email" type="email" defaultValue={h.email ?? ''} placeholder="real@email.com" className="input text-sm" />
         </label>
         <label className="block">
+          <span className="label mb-1.5 block">Phone <span className="font-normal lowercase text-ink-700/50">(for WhatsApp invites)</span></span>
+          <input name="phone_number" type="tel" defaultValue={h.phone_number ?? ''} placeholder="+972 50 123 4567" inputMode="tel" className="input text-sm" />
+        </label>
+        <label className="block">
           <span className="label mb-1.5 block">Role</span>
           <select name="helper_kind" defaultValue={h.helper_kind ?? 'grandparent'} className="input text-sm">
             <option value="grandparent">Grandparent</option>
@@ -149,7 +155,7 @@ function HelperCard({ h, baseUrl }: { h: Row; baseUrl: string }) {
             <option value="other">Other</option>
           </select>
         </label>
-        <div className="flex items-end justify-end">
+        <div className="sm:col-span-2 flex items-end justify-end">
           <button className="btn-soft text-sm">Save changes</button>
         </div>
       </form>
@@ -161,6 +167,9 @@ function HelperCard({ h, baseUrl }: { h: Row; baseUrl: string }) {
           <code className="text-xs text-ink-700/80 truncate block max-w-full mb-2">{url}</code>
           <div className="flex flex-wrap gap-2">
             <CopyLink url={url} label="Copy link" />
+            {h.phone_number && (
+              <WhatsAppButton phone={h.phone_number} name={h.full_name} link={url} />
+            )}
             <a href={url} target="_blank" rel="noreferrer" className="btn-ghost text-xs px-3 py-1.5">Open ↗</a>
             <form action={sendOneInviteAction} className="inline-flex">
               <input type="hidden" name="user_id" value={h.id} />
