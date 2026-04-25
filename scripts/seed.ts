@@ -175,14 +175,9 @@ async function main() {
     });
   }
 
-  console.log('→ connected calendar (placeholder for Paula)');
-  await sb.from('connected_calendars').insert({
-    household_id: householdId,
-    owner_user_id: ids['paula@example.com'],
-    google_account_email: 'paula@example.com',
-    selected_calendar_ids: JSON.stringify(['primary']),
-    last_sync_status: 'not yet connected — complete Google OAuth in Admin → Calendar',
-  });
+  // Don't pre-create a connected_calendars row. The OAuth callback creates
+  // it with real tokens. A stub row makes the UI think the calendar is
+  // connected and "Sync now" fails with "no access token".
 
   console.log('→ reminder settings');
   await sb.from('reminder_settings').insert({

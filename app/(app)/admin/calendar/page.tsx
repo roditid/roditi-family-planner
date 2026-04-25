@@ -38,7 +38,7 @@ export default async function CalendarSettings() {
         </p>
       </header>
 
-      {conn ? (
+      {conn && conn.access_token && conn.refresh_token ? (
         <div className="card p-6 space-y-4">
           <div className="flex items-start gap-4">
             <div className="h-12 w-12 rounded-full bg-sage-500 text-cream-50 grid place-items-center font-display text-xl">
@@ -75,7 +75,9 @@ export default async function CalendarSettings() {
       ) : (
         <div className="card p-6 space-y-4">
           <p>
-            No Google Calendar is connected yet. Paula should sign in with Google and grant access — her calendar contains the kids' schedules.
+            {conn
+              ? 'A connection record exists but the access tokens are missing — likely a stub from initial setup. Click below to authorize Google Calendar and overwrite it.'
+              : "No Google Calendar is connected yet. Paula should sign in with Google and grant access — her calendar contains the kids' schedules."}
           </p>
           <a href="/api/calendar/connect" className="btn-primary">Connect Paula's Google Calendar</a>
         </div>
