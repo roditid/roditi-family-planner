@@ -116,8 +116,10 @@ export default function SlotChip({ slot, currentUserId, density = 'roomy' }: Pro
     );
   }
 
-  // ─── ROOMY (schedule + day views): full info, vertical hierarchy.
-  // Body is tappable for full detail modal; Claim button keeps its own click.
+  // ─── ROOMY (schedule + day views): full info, photo-led hero layout.
+  // The kid's face is the dominant graphic element on the left; everything
+  // else stacks on the right. Body tap opens detail modal; Claim button
+  // keeps its own click.
   return (
     <>
     <div
@@ -125,92 +127,104 @@ export default function SlotChip({ slot, currentUserId, density = 'roomy' }: Pro
         if ((e.target as HTMLElement).closest('button,a')) return;
         setOpen(true);
       }}
-      className={`relative rounded-2xl border transition-all duration-150 active:scale-[0.985] cursor-pointer ${surface} ${pending ? 'opacity-90' : ''}`}
+      className={`relative rounded-2xl border transition-all duration-150 active:scale-[0.99] cursor-pointer overflow-hidden ${surface} ${pending ? 'opacity-90' : ''}`}
     >
-      <span
-        className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-2xl"
-        style={{ background: slot.child.color }}
-        aria-hidden
-      />
-
-      <div className="pl-4 pr-4 py-4 space-y-2.5">
-        <div className="flex items-baseline gap-3">
-          <span className="font-display text-3xl sm:text-4xl tabular-nums leading-none">
-            {prettyTime(slot.pickup_time)}
-          </span>
-          {slot.end_time && (
-            <span className={`text-xs tabular-nums ${ownership === 'mine' ? 'opacity-75' : 'text-ink-700/55'}`}>
-              ends {prettyTime(slot.end_time)}
+      <div className="p-3 sm:p-4 flex gap-3 sm:gap-4 items-stretch">
+        {/* PHOTO COLUMN — hero element. Rectangle stretches to card height. */}
+        <div className="shrink-0 relative w-[38%] max-w-[180px] min-w-[120px] self-stretch min-h-[170px]">
+          <ChildAvatar
+            child={slot.child}
+            shape="rect"
+            rounded="rounded-xl"
+            ring={ownership === 'mine'}
+          />
+          {ownership === 'mine' && (
+            <span className="absolute -bottom-1.5 -right-1.5 h-7 w-7 rounded-full bg-cream-50 text-sage-700 grid place-items-center text-sm font-bold shadow-sm border border-sage-600/20">
+              ✓
             </span>
           )}
         </div>
 
-        <div className="flex items-baseline gap-2.5 flex-wrap">
-          <span
-            className="text-xs font-bold uppercase tracking-[0.1em] px-2 py-1 rounded-md"
-            style={
-              ownership === 'mine'
-                ? { background: 'rgba(255,255,255,0.18)', color: 'inherit' }
-                : { background: slot.child.color, color: '#fff', boxShadow: '0 1px 2px rgba(20,20,16,0.12)' }
-            }
-          >
-            {slot.child.name}
-          </span>
-          <span className={`font-display text-2xl sm:text-[26px] leading-tight tracking-tight ${ownership === 'mine' ? 'text-cream-50' : 'text-ink-900'}`}>
-            {slot.title}
-          </span>
-        </div>
+        {/* CONTENT COLUMN */}
+        <div className="flex-1 min-w-0 space-y-2">
+          {/* Time headline + duration */}
+          <div className="flex items-baseline gap-2.5 flex-wrap">
+            <span className="font-display text-3xl sm:text-4xl tabular-nums leading-none tracking-tight">
+              {prettyTime(slot.pickup_time)}
+            </span>
+            {slot.end_time && (
+              <span className={`text-[11px] tabular-nums uppercase tracking-[0.08em] font-semibold ${ownership === 'mine' ? 'opacity-70' : 'text-ink-700/50'}`}>
+                → {prettyTime(slot.end_time)}
+              </span>
+            )}
+          </div>
 
-        <div className={`text-sm space-y-1.5 ${ownership === 'mine' ? 'opacity-95' : ''}`}>
-          {pickup ? (
-            <LocLine label="from" loc={pickup} mine={ownership === 'mine'} />
-          ) : (
-            <div className={`flex items-center gap-1.5 ${ownership === 'mine' ? 'text-cream-50/95' : 'text-coral-600'}`}>
-              <span>⚠︎</span>
-              <span className="font-medium">Pickup location not set</span>
+          {/* Kid name (small caps) + activity */}
+          <div className="space-y-0.5">
+            <div
+              className="text-[10px] font-bold uppercase tracking-[0.14em]"
+              style={{ color: ownership === 'mine' ? 'rgba(253,250,243,0.85)' : slot.child.color }}
+            >
+              {slot.child.name}
+            </div>
+            <div className={`font-display text-xl sm:text-2xl leading-[1.15] tracking-tight ${ownership === 'mine' ? 'text-cream-50' : 'text-ink-900'}`}>
+              {slot.title}
+            </div>
+          </div>
+
+          {/* Locations */}
+          <div className={`text-sm space-y-1 pt-0.5 ${ownership === 'mine' ? 'opacity-95' : ''}`}>
+            {pickup ? (
+              <LocLine label="from" loc={pickup} mine={ownership === 'mine'} />
+            ) : (
+              <div className={`flex items-center gap-1.5 ${ownership === 'mine' ? 'text-cream-50/95' : 'text-coral-600'}`}>
+                <span>⚠︎</span>
+                <span className="font-medium">Pickup location not set</span>
+              </div>
+            )}
+            {dest && <LocLine label="to" loc={dest} mine={ownership === 'mine'} />}
+          </div>
+
+          {slot.notes && (
+            <div className={`text-[13px] flex gap-1.5 leading-snug ${ownership === 'mine' ? 'opacity-90' : 'text-ink-700/80'}`}>
+              <span className="opacity-60 shrink-0">·</span>
+              <span>{tellable(slot.notes)}</span>
             </div>
           )}
-          {dest && <LocLine label="to" loc={dest} mine={ownership === 'mine'} />}
-        </div>
 
-        {slot.notes && (
-          <div className={`text-sm flex gap-2 ${ownership === 'mine' ? 'opacity-95' : 'text-ink-700/85'}`}>
-            <span className="opacity-70 shrink-0">📝</span>
-            <span>{tellable(slot.notes)}</span>
-          </div>
-        )}
-
-        <div className="pt-1.5 flex items-center justify-between gap-3 flex-wrap">
-          {ownership === 'mine' ? (
-            <span className="text-xs font-bold tracking-[0.08em] uppercase opacity-95">✓ You're on it</span>
-          ) : ownership === 'taken' ? (
-            <span className="inline-flex items-center gap-1.5 text-sm">
-              <span className="h-6 w-6 rounded-full bg-sage-500/15 text-sage-700 grid place-items-center text-[11px] font-bold">
-                {(claimedBy?.full_name ?? '?').slice(0, 1)}
+          {/* Status + action */}
+          <div className="pt-2 flex items-center justify-between gap-3 flex-wrap">
+            {ownership === 'mine' ? (
+              <span className="text-[11px] font-bold tracking-[0.1em] uppercase opacity-95">You're on it</span>
+            ) : ownership === 'taken' ? (
+              <span className="inline-flex items-center gap-1.5 text-sm">
+                <span className="h-6 w-6 rounded-full bg-sage-500/15 text-sage-700 grid place-items-center text-[11px] font-bold">
+                  {(claimedBy?.full_name ?? '?').slice(0, 1)}
+                </span>
+                <span className="font-medium">{claimedBy?.full_name}</span>
               </span>
-              <span className="font-medium">{claimedBy?.full_name}</span>
-            </span>
-          ) : (
-            <span className="text-sm font-semibold text-coral-600">Needs a helper</span>
-          )}
+            ) : (
+              <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-coral-600">Needs a helper</span>
+            )}
 
-          {interactive && (
-            <button
-              onClick={doClaim}
-              disabled={pending}
-              className={
-                'rounded-xl text-sm font-semibold tracking-wide transition-all duration-150 active:scale-95 ' +
-                (ownership === 'mine'
-                  ? 'bg-cream-50/15 hover:bg-cream-50/25 text-cream-50 px-4 py-2.5'
-                  : 'bg-sage-500 hover:bg-sage-600 text-cream-50 px-5 py-3 shadow-sm')
-              }
-            >
-              {pending ? '…' : ownership === 'mine' ? 'Unclaim' : 'Claim this pickup'}
-            </button>
-          )}
+            {interactive && (
+              <button
+                onClick={doClaim}
+                disabled={pending}
+                className={
+                  'rounded-xl text-sm font-semibold tracking-wide transition-all duration-150 active:scale-95 ' +
+                  (ownership === 'mine'
+                    ? 'bg-cream-50/15 hover:bg-cream-50/25 text-cream-50 px-3.5 py-2'
+                    : 'bg-sage-500 hover:bg-sage-600 text-cream-50 px-4 py-2.5 shadow-sm')
+                }
+              >
+                {pending ? '…' : ownership === 'mine' ? 'Unclaim' : 'Claim'}
+              </button>
+            )}
+          </div>
+
+          {err && <div className="text-xs text-coral-600 mt-1 font-medium">{err}</div>}
         </div>
-
-        {err && <div className="text-xs text-coral-600 mt-1 font-medium">{err}</div>}
       </div>
     </div>
     {detailModal}
