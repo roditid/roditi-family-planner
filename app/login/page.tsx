@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabase/client';
@@ -10,6 +10,16 @@ import { supabaseBrowser } from '@/lib/supabase/client';
 const GOOGLE_ENABLED = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === 'true';
 
 export default function LoginPage() {
+  // useSearchParams forces this page out of static prerender; Suspense
+  // boundary keeps Next happy at build time.
+  return (
+    <Suspense>
+      <LoginContent />
+    </Suspense>
+  );
+}
+
+function LoginContent() {
   const sb = supabaseBrowser();
   const params = useSearchParams();
   const [email, setEmail] = useState(params.get('email') ?? '');
