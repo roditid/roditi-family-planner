@@ -21,14 +21,11 @@ export function schoolWeekDays(anchor: Date | string = new Date()) {
 
 /**
  * Default anchor when the user doesn't pass `?d=`.
- *  - Sun–Thu: this week's Sunday (the school week we're in)
- *  - Fri/Sat: next Sunday (the upcoming school week)
- * Keeps Saturday's invite emails landing on the *upcoming* week.
+ *  Today. The 'week' view shows today + next 6 days, so this is what
+ *  helpers see when they arrive: a rolling 7-day window starting now.
  */
 export function defaultAnchor(now = new Date()) {
-  const dow = now.getDay(); // 0=Sun..6=Sat
-  if (dow >= 5) return addDays(weekStart(now), 7); // Fri/Sat → next Sunday
-  return weekStart(now);
+  return now;
 }
 
 export function daysOfWeek(anchor: Date | string = new Date()) {
@@ -36,12 +33,16 @@ export function daysOfWeek(anchor: Date | string = new Date()) {
   return Array.from({ length: 7 }, (_, i) => addDays(start, i));
 }
 
-/** Days the calendar should render for a given view, anchored on `anchor`. */
+/** Days the calendar should render for a given view, anchored on `anchor`.
+ *  - day:  just the anchor date
+ *  - 3day: anchor + next 2 days
+ *  - week: anchor + next 6 days (rolling 7-day window — "next week's pickups")
+ */
 export function daysForView(view: CalView, anchor: Date | string = new Date()): Date[] {
   const a = typeof anchor === 'string' ? parseISO(anchor) : anchor;
   if (view === 'day') return [a];
   if (view === '3day') return [0, 1, 2].map((i) => addDays(a, i));
-  return schoolWeekDays(a);
+  return [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(a, i));
 }
 
 /** Step amount when user clicks prev/next, in days. */

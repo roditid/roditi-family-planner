@@ -18,22 +18,30 @@ export default async function AdminOverview({ searchParams }: { searchParams: { 
   const { start, startISO, endISO } = weekRange(anchor);
   const slots = await fetchSlots(sb, ctx.household!.id, startISO, endISO);
 
-  // Helpers list for the assignment dropdown
+  // Assignable members — admins AND helpers. Anyone in the household can do
+  // a pickup. Sorted: admins first (parents typically know who's free), then
+  // helpers grouped by kind.
   let helpers: any[] = [];
   if (demoMode()) {
-    helpers = allUsers().filter((u) => u.role === 'helper').map((u) => ({
+    helpers = allUsers().map((u) => ({
       id: u.id, full_name: u.full_name, helper_kind: u.helper_kind, role: u.role,
     }));
   } else {
     const { data } = await sb
       .from('household_members')
       .select('helper_kind, role, profiles:user_id(id, full_name)')
-      .eq('household_id', ctx.household!.id)
-      .eq('role', 'helper');
+      .eq('household_id', ctx.household!.id);
     helpers = (data ?? []).map((m: any) => ({
       id: m.profiles.id, full_name: m.profiles.full_name, helper_kind: m.helper_kind, role: m.role,
     }));
   }
+  // Stable order: admins first, then grandparents, then nanny.
+  const ROLE_ORDER: Record<string, number> = { admin: 0, grandparent: 1, nanny: 2, other: 3 };
+  helpers.sort((a, b) => {
+    const ka = a.role === 'admin' ? 0 : ROLE_ORDER[a.helper_kind ?? 'other'] ?? 3;
+    const kb = b.role === 'admin' ? 0 : ROLE_ORDER[b.helper_kind ?? 'other'] ?? 3;
+    return ka - kb || a.full_name.localeCompare(b.full_name);
+  });
 
   // Recent activity feed
   let activity: { kind: string; created_at: string; actor: string; subject: string | null; slotLabel: string }[] = [];

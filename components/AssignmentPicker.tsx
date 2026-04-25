@@ -5,6 +5,12 @@ import { reassignSlotAction } from '@/app/_actions/admin';
 
 interface Helper { id: string; full_name: string; helper_kind?: string | null; role: string; }
 
+function labelFor(h: Helper): string {
+  if (h.role === 'admin') return ' (Parent)';
+  if (h.helper_kind === 'nanny') return ' (Nanny)';
+  return '';
+}
+
 export default function AssignmentPicker({
   slotId,
   currentUserId,
@@ -42,7 +48,7 @@ export default function AssignmentPicker({
         <option value="__clear__">— Unassign —</option>
         {helpers.map((h) => (
           <option key={h.id} value={h.id}>
-            {h.full_name}{h.helper_kind === 'nanny' ? ' (Nanny)' : ''}
+            {h.full_name}{labelFor(h)}
           </option>
         ))}
       </select>

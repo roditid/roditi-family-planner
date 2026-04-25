@@ -12,12 +12,6 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
   const ctx = await requireAuth();
   const sb = supabaseServer();
 
-  // Admins land on the admin dashboard by default. They can still get back
-  // to their personal calendar via the "My pickups" header link.
-  if (ctx.role === 'admin' && !searchParams.v && !searchParams.d) {
-    redirect('/admin');
-  }
-
   const view: CalView = (searchParams.v as CalView) ?? 'week';
   const anchor = searchParams.d ? parseISO(searchParams.d) : (view === 'week' ? defaultAnchor() : new Date());
 
