@@ -20,7 +20,9 @@ export default function CalendarToolbar({ view, anchor, rangeLabel }: Props) {
       if (v == null) q.delete(k);
       else q.set(k, v);
     }
-    router.push(`?${q.toString()}`);
+    // Use replace + scroll: false for snappier feel — avoids history clutter
+    // and the page jumping to the top on each toolbar tap.
+    router.replace(`?${q.toString()}`, { scroll: false });
   }
 
   function step(delta: number) {
@@ -37,39 +39,39 @@ export default function CalendarToolbar({ view, anchor, rangeLabel }: Props) {
   }
 
   return (
-    <div className="sticky top-14 z-10 -mx-3 sm:-mx-5 px-3 sm:px-5 py-3 bg-cream-100/95 backdrop-blur border-b border-black/5">
-      <div className="flex items-center gap-2 justify-between flex-wrap">
+    <div className="sticky top-14 z-10 -mx-3 sm:-mx-5 px-3 sm:px-5 py-3 bg-cream-100/95 backdrop-blur-md border-b border-black/5">
+      <div className="flex items-center gap-2 justify-between">
         {/* View toggle */}
-        <div className="inline-flex rounded-xl bg-black/5 p-1 text-sm">
-          <ViewBtn label="Day"    v="day"   active={view === 'day'}   onClick={() => setView('day')} />
-          <ViewBtn label="3-day"  v="3day"  active={view === '3day'}  onClick={() => setView('3day')} />
-          <ViewBtn label="Week"   v="week"  active={view === 'week'}  onClick={() => setView('week')} />
+        <div className="inline-flex rounded-xl bg-black/[0.06] p-1 text-sm">
+          <ViewBtn label="Day"    days="1 day"   active={view === 'day'}   onClick={() => setView('day')} />
+          <ViewBtn label="3 days" days="3 days"  active={view === '3day'}  onClick={() => setView('3day')} />
+          <ViewBtn label="Week"   days="7 days"  active={view === 'week'}  onClick={() => setView('week')} />
         </div>
 
         {/* Date nav */}
-        <div className="inline-flex items-center gap-1">
+        <div className="inline-flex items-center gap-0.5">
           <button onClick={() => step(-1)} aria-label="Previous"
-            className="h-9 w-9 grid place-items-center rounded-lg hover:bg-black/5 text-lg">←</button>
-          <button onClick={goToday} className="px-3 py-1.5 rounded-lg hover:bg-black/5 text-sm font-medium">
+            className="h-9 w-9 grid place-items-center rounded-lg hover:bg-black/5 active:scale-90 transition-transform text-lg">←</button>
+          <button onClick={goToday} className="px-3 py-1.5 rounded-lg hover:bg-black/5 active:scale-95 transition-transform text-sm font-medium">
             Today
           </button>
           <button onClick={() => step(1)} aria-label="Next"
-            className="h-9 w-9 grid place-items-center rounded-lg hover:bg-black/5 text-lg">→</button>
+            className="h-9 w-9 grid place-items-center rounded-lg hover:bg-black/5 active:scale-90 transition-transform text-lg">→</button>
         </div>
       </div>
 
-      <div className="mt-2 font-display text-lg sm:text-xl">{rangeLabel}</div>
+      <div className="mt-2 font-display text-base sm:text-lg text-ink-700/80">{rangeLabel}</div>
     </div>
   );
 }
 
-function ViewBtn({ label, active, onClick }: { label: string; v: CalView; active: boolean; onClick: () => void }) {
+function ViewBtn({ label, active, onClick }: { label: string; days?: string; active: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
       className={
-        'px-3 py-1.5 rounded-lg transition font-medium ' +
-        (active ? 'bg-cream-50 shadow-sm text-ink-900' : 'text-ink-700/70 hover:text-ink-900')
+        'px-3 py-1.5 rounded-lg transition-all duration-150 active:scale-95 font-medium ' +
+        (active ? 'bg-cream-50 shadow-sm text-ink-900' : 'text-ink-700/65 hover:text-ink-900')
       }
     >
       {label}

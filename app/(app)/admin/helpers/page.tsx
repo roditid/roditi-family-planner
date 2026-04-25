@@ -17,6 +17,7 @@ type Row = {
   phone_number: string | null;
   helper_kind: string | null;
   magic_token: string | null;
+  magic_slug: string | null;
   last_invite_sent_at: string | null;
   email_enabled: boolean;
   role: 'admin' | 'helper';
@@ -30,14 +31,14 @@ export default async function HelpersAdmin() {
   if (demoMode()) {
     members = allUsers().map((u: any) => ({
       id: u.id, full_name: u.full_name, email: u.email, phone_number: u.phone_number,
-      helper_kind: u.helper_kind, magic_token: u.magic_token,
+      helper_kind: u.helper_kind, magic_token: u.magic_token, magic_slug: u.magic_slug ?? null,
       last_invite_sent_at: null, email_enabled: u.email_enabled, role: u.role,
     }));
   } else {
     const sb = supabaseServer();
     const { data } = await sb
       .from('household_members')
-      .select('helper_kind, role, profiles:user_id(id, full_name, email, phone_number, magic_token, last_invite_sent_at, email_enabled)')
+      .select('helper_kind, role, profiles:user_id(id, full_name, email, phone_number, magic_token, magic_slug, last_invite_sent_at, email_enabled)')
       .eq('household_id', ctx.household!.id);
     members = (data ?? []).map((m: any) => ({ ...m.profiles, helper_kind: m.helper_kind, role: m.role }));
   }
@@ -104,7 +105,10 @@ function AdminRow({ m }: { m: Row }) {
 }
 
 function HelperCard({ h, baseUrl }: { h: Row; baseUrl: string }) {
-  const url = h.magic_token ? `${baseUrl}/i/${h.magic_token}` : null;
+  // Prefer the friendly /vovo URL when a slug exists; fall back to /i/<token>.
+  const friendly = h.magic_slug ? `${baseUrl}/${h.magic_slug}` : null;
+  const tokenUrl = h.magic_token ? `${baseUrl}/i/${h.magic_token}` : null;
+  const url = friendly ?? tokenUrl;
   const placeholderEmail = h.email?.endsWith('@example.com') || h.email?.endsWith('@roditi.family');
 
   return (
@@ -162,10 +166,19 @@ function HelperCard({ h, baseUrl }: { h: Row; baseUrl: string }) {
 
       {/* Personal link */}
       {url && (
-        <div className="rounded-xl bg-cream-200/40 border border-black/[0.04] p-3">
-          <div className="text-xs text-ink-700/60 uppercase tracking-wider mb-1">Personal sign-in link</div>
-          <code className="text-xs text-ink-700/80 truncate block max-w-full mb-2">{url}</code>
-          <div className="flex flex-wrap gap-2">
+        <div className="rounded-xl bg-cream-200/40 border border-black/[0.04] p-3 space-y-2">
+          <div className="text-xs text-ink-700/60 uppercase tracking-wider">Personal sign-in link</div>
+          <div className="flex items-center gap-2">
+            <code className="font-mono text-sm text-sage-700 font-semibold truncate flex-1 min-w-0 bg-cream-50 rounded-lg px-2.5 py-1.5 border border-black/[0.04]">
+              {url.replace(/^https?:\/\//, '')}
+            </code>
+          </div>
+          {tokenUrl && tokenUrl !== url && (
+            <div className="text-[11px] text-ink-700/45">
+              Backup: <code className="font-mono">{tokenUrl.replace(/^https?:\/\//, '')}</code>
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2 pt-1">
             <CopyLink url={url} label="Copy link" />
             {h.phone_number && (
               <WhatsAppButton phone={h.phone_number} name={h.full_name} link={url} />

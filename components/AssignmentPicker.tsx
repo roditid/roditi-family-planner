@@ -1,16 +1,15 @@
 'use client';
-import { useTransition } from 'react';
+import { useOptimistic, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { reassignSlotAction } from '@/app/_actions/admin';
 
 interface Helper { id: string; full_name: string; helper_kind?: string | null; role: string; }
 
-function labelFor(h: Helper): string {
-  if (h.role === 'admin') return ' (Parent)';
-  if (h.helper_kind === 'nanny') return ' (Nanny)';
-  return '';
-}
-
+/**
+ * Inline assignment dropdown. Optimistic: the select value flips locally
+ * the instant the admin picks someone, while the server action fires in
+ * the background. No spinner, no perceived lag.
+ */
 export default function AssignmentPicker({
   slotId,
   currentUserId,
@@ -22,36 +21,42 @@ export default function AssignmentPicker({
 }) {
   const [pending, start] = useTransition();
   const router = useRouter();
+  const [value, setValue] = useOptimistic(currentUserId ?? '__clear__', (_p, n: string) => n);
 
-  function submit(formData: FormData) {
+  function pick(userId: string) {
+    const formData = new FormData();
+    formData.set('slot_id', slotId);
+    formData.set('user_id', userId);
     start(async () => {
+      setValue(userId);
       await reassignSlotAction(formData);
       router.refresh();
     });
   }
 
   return (
-    <form action={submit} className="inline-flex">
-      <input type="hidden" name="slot_id" value={slotId} />
-      <select
-        name="user_id"
-        defaultValue={currentUserId ?? ''}
-        disabled={pending}
-        onChange={(e) => {
-          // Auto-submit on change — feels more immediate.
-          const form = e.currentTarget.form!;
-          const fd = new FormData(form);
-          submit(fd);
-        }}
-        className="text-sm rounded-lg border border-black/10 bg-white px-2 py-1.5 min-w-[160px]"
-      >
-        <option value="__clear__">— Unassign —</option>
-        {helpers.map((h) => (
-          <option key={h.id} value={h.id}>
-            {h.full_name}{labelFor(h)}
-          </option>
-        ))}
-      </select>
-    </form>
+    <select
+      value={value}
+      disabled={pending}
+      onChange={(e) => pick(e.target.value)}
+      className={
+        'text-sm rounded-lg border bg-white px-3 py-2 min-w-[170px] transition-all duration-150 ' +
+        'focus:border-sage-500 focus:ring-2 focus:ring-sage-500/20 outline-none ' +
+        (pending ? 'border-sage-500/50 opacity-80' : 'border-black/10 hover:border-sage-500/40')
+      }
+    >
+      <option value="__clear__">— Unassigned —</option>
+      {helpers.map((h) => (
+        <option key={h.id} value={h.id}>
+          {h.full_name}{labelFor(h)}
+        </option>
+      ))}
+    </select>
   );
+}
+
+function labelFor(h: Helper): string {
+  if (h.role === 'admin') return ' (Parent)';
+  if (h.helper_kind === 'nanny') return ' (Nanny)';
+  return '';
 }
