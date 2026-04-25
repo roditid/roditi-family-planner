@@ -8,11 +8,11 @@ export function supabaseServer() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get: (n) => jar.get(n)?.value,
-        set: (n, v, o: CookieOptions) => {
+        get: (n: string) => jar.get(n)?.value,
+        set: (n: string, v: string, o: CookieOptions) => {
           try { jar.set({ name: n, value: v, ...o }); } catch { /* server component read-only */ }
         },
-        remove: (n, o: CookieOptions) => {
+        remove: (n: string, o: CookieOptions) => {
           try { jar.set({ name: n, value: '', ...o }); } catch {}
         },
       },
