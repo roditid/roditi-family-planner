@@ -8,7 +8,7 @@
  * Requires: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI.
  * OAuth connection flow lives in /api/calendar/connect.
  */
-import { google, calendar_v3 } from 'googleapis';
+import { google } from 'googleapis';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { addDays, format } from 'date-fns';
 
@@ -74,7 +74,12 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
   let eventsSeen = 0;
   let slotsCreated = 0;
 
-  // Load activities once to match keywords.
+  // Load children + activities for matching.
+  const { data: children } = await sb
+    .from('children')
+    .select('id, name, color, school_location_id, home_location_id, household_id')
+    .eq('household_id', householdId);
+
   const { data: activities } = await sb
     .from('activities')
     .select('*, child:children(id,name,household_id)')
@@ -115,27 +120,31 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
         raw: ev as any,
       }, { onConflict: 'calendar_id,google_event_id' }).select().single();
 
-      const match = matchActivity(title, activities ?? []);
+      const match = await resolveEventMatch(sb, title, children ?? [], activities ?? []);
       if (!match) continue;
 
       const pickupTime = format(start, 'HH:mm:ss');
       const endTime = end ? format(end, 'HH:mm:ss') : null;
       const date = format(start, 'yyyy-MM-dd');
 
+      // Display title: prefer parsed activity name (e.g. "Ninja") over the raw
+      // calendar title ("Ninja - Adam") so the UI shows the cleaner version.
+      const displayTitle = match.activityTitle ?? title;
+
       const { error } = await sb.from('pickup_slots').upsert({
         household_id: householdId,
         child_id: match.child.id,
-        activity_id: match.id,
+        activity_id: match.activity?.id ?? null,
         source_event_id: eventRow!.id,
         source: 'calendar',
-        title,
+        title: displayTitle,
         date,
         pickup_time: pickupTime,
         end_time: endTime,
-        pickup_location_id: match.default_pickup_location_id,
-        destination_location_id: match.default_destination_location_id,
+        pickup_location_id: match.activity?.default_pickup_location_id ?? match.child.school_location_id ?? null,
+        destination_location_id: match.activity?.default_destination_location_id ?? match.child.home_location_id ?? null,
         pickup_location_text: ev.location ?? null,  // preserve raw for display if no structured
-        notes: match.notes,
+        notes: match.activity?.notes ?? null,
       }, { onConflict: 'source_event_id' });
       if (!error) slotsCreated++;
     }
@@ -154,7 +163,66 @@ function matches(title: string, kw: string) {
   return title.toLowerCase().includes(kw.toLowerCase());
 }
 
-function matchActivity(title: string, activities: any[]) {
-  const t = title.toLowerCase();
-  return activities.find((a) => a.event_keyword && t.includes(a.event_keyword.toLowerCase())) ?? null;
+interface EventMatch {
+  child: { id: string; name: string; school_location_id: string | null; home_location_id: string | null };
+  activity: any | null;
+  activityTitle: string | null;
+}
+
+/**
+ * Decide which child + activity an event belongs to.
+ *
+ * Primary pattern: "Activity - Kid Name" (e.g. "Ninja - Adam", "Judo - Liam").
+ * Separator can be ` - `, ` — `, ` – `, or `: `. Last segment is the kid.
+ *
+ * Fallback: legacy keyword match against `activity.event_keyword`.
+ *
+ * If we resolve a child + activity name, we ALSO auto-create an activity
+ * row on first sight so the parent can later set defaults for it in the
+ * admin UI without typing the name again.
+ */
+async function resolveEventMatch(
+  sb: SupabaseClient,
+  title: string,
+  children: any[],
+  activities: any[]
+): Promise<EventMatch | null> {
+  // Try the "Activity - Kid Name" pattern.
+  const SEP = /\s+[-–—:|/]\s+/;
+  const segs = title.split(SEP).map((s) => s.trim()).filter(Boolean);
+  if (segs.length >= 2) {
+    // The kid name might be in any segment, but most commonly the LAST.
+    // Check both ends.
+    const candidates = [segs[segs.length - 1], segs[0]];
+    for (const cand of candidates) {
+      const child = children.find((c) => c.name.toLowerCase() === cand.toLowerCase());
+      if (!child) continue;
+      // Activity title = whatever's NOT the kid name.
+      const activityTitle = segs.filter((s) => s !== cand).join(' - ').trim();
+      // Find or create the activity row by (child_id, lower(title)).
+      let activity = activities.find((a) =>
+        a.child?.id === child.id && a.title.toLowerCase() === activityTitle.toLowerCase()
+      );
+      if (!activity && activityTitle) {
+        const { data: created } = await sb.from('activities').insert({
+          child_id: child.id,
+          title: activityTitle,
+          event_keyword: activityTitle.toLowerCase(),
+        }).select('*, child:children(id,name,household_id)').single();
+        activity = created;
+        activities.push(activity);
+      }
+      return { child, activity: activity ?? null, activityTitle: activityTitle || null };
+    }
+  }
+
+  // Fallback: legacy keyword match.
+  const kw = activities.find((a) => a.event_keyword && matches(title, a.event_keyword));
+  if (kw?.child) return { child: kw.child, activity: kw, activityTitle: kw.title };
+
+  // Last resort: kid name appears anywhere in the title.
+  const child = children.find((c) => matches(title, c.name));
+  if (child) return { child, activity: null, activityTitle: title };
+
+  return null;
 }
