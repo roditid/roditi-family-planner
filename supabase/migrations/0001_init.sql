@@ -171,10 +171,12 @@ create table pickup_slots (
 );
 create index on pickup_slots (household_id, date);
 create index on pickup_slots (status);
--- Prevent duplicate slots on resync:
+-- Prevent duplicate slots on resync. Plain UNIQUE (not partial) because
+-- Supabase JS upsert with onConflict='source_event_id' requires a regular
+-- unique constraint or full unique index. Multiple NULLs are allowed by
+-- default (Postgres NULLS DISTINCT), so manual slots coexist fine.
 create unique index pickup_slots_source_event_unique
-  on pickup_slots (source_event_id)
-  where source_event_id is not null;
+  on pickup_slots (source_event_id);
 
 -- ----------------------------------------------------------------------
 -- Slot assignments (history-aware; only one active per slot)
