@@ -37,6 +37,7 @@ export async function updateLocationAction(formData: FormData) {
     street: strOrNull(formData.get('street')),
     city: strOrNull(formData.get('city')),
     notes: strOrNull(formData.get('notes')),
+    is_common: formData.get('is_common') === 'on',
   };
   if (!id || !patch.label) return;
   if (demoMode()) { demo.updateLocation(id, patch); }
@@ -44,6 +45,24 @@ export async function updateLocationAction(formData: FormData) {
     const sb = supabaseServer();
     await sb.from('locations').update(patch).eq('id', id).eq('household_id', ctx.household!.id);
   }
+  revalidatePath('/admin/locations');
+}
+
+export async function deleteLocationAction(formData: FormData) {
+  const ctx = await requireAdmin();
+  const id = String(formData.get('id') ?? '');
+  if (!id) return;
+  if (demoMode()) return; // demo store has no delete-location helper
+  const sb = supabaseServer();
+  // Null any references on slots/activities/children before deleting,
+  // otherwise the FK constraint blocks the delete.
+  await sb.from('pickup_slots').update({ pickup_location_id: null }).eq('pickup_location_id', id);
+  await sb.from('pickup_slots').update({ destination_location_id: null }).eq('destination_location_id', id);
+  await sb.from('activities').update({ default_pickup_location_id: null }).eq('default_pickup_location_id', id);
+  await sb.from('activities').update({ default_destination_location_id: null }).eq('default_destination_location_id', id);
+  await sb.from('children').update({ school_location_id: null }).eq('school_location_id', id);
+  await sb.from('children').update({ home_location_id: null }).eq('home_location_id', id);
+  await sb.from('locations').delete().eq('id', id).eq('household_id', ctx.household!.id);
   revalidatePath('/admin/locations');
 }
 
@@ -64,9 +83,33 @@ export async function updateActivityAction(formData: FormData) {
   if (demoMode()) { demo.updateActivity(id, patch); }
   else {
     const sb = supabaseServer();
-    // RLS verifies the activity belongs to a child in the admin's household.
     await sb.from('activities').update(patch).eq('id', id);
+
+    // Apply the new defaults to ALL upcoming pickup_slots tied to this
+    // activity so the parent doesn't have to re-sync. We only touch slots
+    // that don't already have explicit per-slot overrides set in the past.
+    if (patch.default_pickup_location_id) {
+      await sb.from('pickup_slots').update({ pickup_location_id: patch.default_pickup_location_id })
+        .eq('activity_id', id);
+    }
+    if (patch.default_destination_location_id) {
+      await sb.from('pickup_slots').update({ destination_location_id: patch.default_destination_location_id })
+        .eq('activity_id', id);
+    }
   }
+  revalidatePath('/admin/children');
+  revalidatePath('/admin');
+  revalidatePath('/my-pickups');
+  revalidatePath('/pickups');
+}
+
+export async function deleteActivityAction(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get('id') ?? '');
+  if (!id) return;
+  if (demoMode()) return;
+  const sb = supabaseServer();
+  await sb.from('activities').delete().eq('id', id);
   revalidatePath('/admin/children');
 }
 
@@ -173,6 +216,30 @@ export async function updateReminderSettingsAction(formData: FormData) {
     const sb = supabaseServer();
     await sb.from('reminder_settings').upsert({ household_id: ctx.household!.id, ...patch });
   }
+  revalidatePath('/admin/reminders');
+}
+
+/**
+ * Send a sample reminder email to the current admin's inbox so they can
+ * see what the helpers receive in the morning.
+ */
+export async function sendTestReminderAction() {
+  const ctx = await requireAdmin();
+  if (!ctx.profile?.email) return;
+  const { renderReminder, emailProvider } = await import('@/lib/notify');
+  const sb = supabaseServer();
+  const today = new Date().toISOString().slice(0, 10);
+  const { fetchSlots } = await import('@/lib/slots');
+  const todayPlus = new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10);
+  const slots = await fetchSlots(sb, ctx.household!.id, today, todayPlus);
+  const example = slots.find((s) => s.pickup_location) ?? slots[0];
+  if (!example) return;
+  const { subject, body } = renderReminder(example);
+  await emailProvider.send({
+    to: ctx.profile.email,
+    subject: `[TEST] ${subject}`,
+    body: `(This is a test from Pickup Planner — it's what helpers receive in the morning.)\n\n${body}`,
+  });
   revalidatePath('/admin/reminders');
 }
 
