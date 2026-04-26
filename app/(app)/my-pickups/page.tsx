@@ -5,6 +5,7 @@ import { supabaseServer } from '@/lib/supabase/server';
 import { fetchSlots } from '@/lib/slots';
 import { defaultAnchor, type CalView, daysForView } from '@/lib/week';
 import CalendarView from '@/components/CalendarView';
+import HelperAvatar from '@/components/HelperAvatar';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,13 +47,25 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
 
   return (
     <div className="space-y-3">
-      <header className="px-1">
-        <h1 className="font-display text-3xl sm:text-4xl">Hi, {firstName} 👋</h1>
-        <p className="text-ink-700/70 text-sm sm:text-base mt-0.5">
-          {myCount === 0
-            ? `${openCount} pickup${openCount === 1 ? '' : 's'} need a helper this week. Tap any to claim.`
-            : `You're on ${myCount} pickup${myCount === 1 ? '' : 's'} this week.${openCount ? ` Plus ${openCount} still open.` : ''}`}
-        </p>
+      <header className="px-1 flex items-center gap-3.5 sm:gap-4">
+        <HelperAvatar name={ctx.profile?.full_name ?? firstName} photoUrl={ctx.profile?.photo_url} size={56} ring />
+        <div className="min-w-0">
+          <h1 className="font-display text-3xl sm:text-4xl tracking-tight inline-flex items-baseline gap-2">
+            Hi, {firstName}
+            {/* Heart in coral — replaces the waving-hand emoji. */}
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden className="inline-block translate-y-[1px]">
+              <path
+                d="M12 21s-7.5-5-7.5-11.2A4.3 4.3 0 0 1 12 6.5a4.3 4.3 0 0 1 7.5 3.3C19.5 16 12 21 12 21Z"
+                fill="#E89070"
+              />
+            </svg>
+          </h1>
+          <p className="text-ink-700/70 text-sm sm:text-base mt-0.5">
+            {myCount === 0
+              ? `${openCount} pickup${openCount === 1 ? '' : 's'} need a helper this week. Tap any to claim.`
+              : `You're on ${myCount} pickup${myCount === 1 ? '' : 's'} this week.${openCount ? ` Plus ${openCount} still open.` : ''}`}
+          </p>
+        </div>
       </header>
 
       {/* Filter toggle (only useful when there's something to filter) */}
