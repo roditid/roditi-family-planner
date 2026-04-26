@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import { addDays, format, parseISO } from 'date-fns';
+import { fromZonedTime } from 'date-fns-tz';
 import { requireAuth } from '@/lib/permissions';
 import { supabaseServer } from '@/lib/supabase/server';
 import { fetchSlots } from '@/lib/slots';
-import { defaultAnchor, type CalView, daysForView } from '@/lib/week';
+import { defaultAnchor, type CalView, daysForView, endOfSchoolWeek } from '@/lib/week';
 import CalendarView from '@/components/CalendarView';
 import HelperAvatar from '@/components/HelperAvatar';
 
@@ -31,8 +32,22 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
   const endISO = format(addDays(days[days.length - 1], 1), 'yyyy-MM-dd');
 
   const slots = await fetchSlots(sb, ctx.household!.id, startISO, endISO);
-  const myCount = slots.filter((s) => s.assignment?.assigned_to_user_id === ctx.user.id).length;
-  const openCount = slots.filter((s) => s.status === 'unclaimed').length;
+
+  // "This week" counts only Sun→Thu of the current Israeli school week,
+  // and only pickups whose time hasn't already passed (a 16:00 pickup at
+  // 18:30 isn't something a helper can claim anymore).
+  const tz = ctx.household?.timezone ?? 'Asia/Jerusalem';
+  const weekEnd = endOfSchoolWeek(new Date());
+  const nowMs = Date.now();
+  const isUpcomingThisWeek = (s: any) => {
+    const slotDate = parseISO(s.date);
+    if (slotDate > weekEnd) return false;
+    const slotUtc = fromZonedTime(`${s.date}T${s.pickup_time}`, tz);
+    return slotUtc.getTime() > nowMs - 30 * 60 * 1000;  // 30-min grace window
+  };
+  const thisWeekUpcoming = slots.filter(isUpcomingThisWeek);
+  const myCount = thisWeekUpcoming.filter((s) => s.assignment?.assigned_to_user_id === ctx.user.id).length;
+  const openCount = thisWeekUpcoming.filter((s) => s.status === 'unclaimed').length;
 
   const firstName = (ctx.profile?.full_name ?? '').split(' ')[0] || 'there';
 

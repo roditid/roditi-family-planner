@@ -59,6 +59,19 @@ export function stepForView(view: CalView): number {
   return 7; // schedule + week
 }
 
+/**
+ * End of the current Israeli school week (Sunday–Thursday). If today is
+ * Sun..Thu, returns end-of-Thursday this week. If today is Fri or Sat,
+ * returns end-of-Thursday next week (school resumes Sunday).
+ */
+export function endOfSchoolWeek(now = new Date()): Date {
+  const dow = now.getDay(); // 0=Sun..6=Sat
+  const daysToThursday = dow <= 4 ? 4 - dow : (4 - dow + 7);
+  const thursday = addDays(now, daysToThursday);
+  thursday.setHours(23, 59, 59, 999);
+  return thursday;
+}
+
 export function prettyDay(d: Date) { return format(d, 'EEEE, MMM d'); }
 export function shortDay(d: Date) { return format(d, 'EEE'); }
 export function dayNumber(d: Date) { return format(d, 'd'); }

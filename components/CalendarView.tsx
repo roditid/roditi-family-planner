@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { fromZonedTime } from 'date-fns-tz';
 import type { SlotView } from '@/lib/types';
 import { type CalView, daysForView, isoDay, isToday, prettyDay, shortDay, dayNumber } from '@/lib/week';
 import { relativeDay } from '@/lib/relative-time';
@@ -26,9 +27,19 @@ interface Props {
  */
 export default function CalendarView({ view, anchor, slots, currentUserId, currentUserPhone, currentUserName, isAdmin, onlyMine }: Props) {
   const days = daysForView(view, anchor);
+  // Drop pickups whose time is already 30+ minutes in the past (helper
+  // can't claim them anymore). 30-min grace so a slot disappearing
+  // mid-walk doesn't surprise anyone. IL timezone — slot.date + pickup_time
+  // are stored as the household-local time.
+  const nowMs = Date.now();
+  const stillRelevant = (s: SlotView) => {
+    const slotUtc = fromZonedTime(`${s.date}T${s.pickup_time}`, 'Asia/Jerusalem');
+    return slotUtc.getTime() > nowMs - 30 * 60 * 1000;
+  };
+  const upcoming = slots.filter(stillRelevant);
   const filtered = onlyMine
-    ? slots.filter((s) => s.assignment?.assigned_to_user_id === currentUserId)
-    : slots;
+    ? upcoming.filter((s) => s.assignment?.assigned_to_user_id === currentUserId)
+    : upcoming;
   const byDay = new Map<string, SlotView[]>();
   for (const s of filtered) {
     const k = s.date;
