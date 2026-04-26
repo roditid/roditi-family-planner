@@ -23,8 +23,9 @@ export function formatAddress(loc: { street?: string | null; city?: string | nul
 export function mapsHref(loc: { lat?: number | null; lng?: number | null; label?: string; street?: string | null; city?: string | null } | null) {
   if (!loc) return null;
   if (loc.lat && loc.lng) return `https://maps.google.com/?q=${loc.lat},${loc.lng}`;
-  // Maps query KEEPS the city since Google may need it to disambiguate the
-  // address; only the on-screen line drops the implicit city.
-  const q = encodeURIComponent([loc.label, loc.street, loc.city].filter(Boolean).join(', '));
+  // The on-screen label ("Gan Adam", "Drahi Community Center") confuses
+  // Google's geocoder — it searches for those as place names and often
+  // lands on the wrong pin. Build the query from street + city only.
+  const q = encodeURIComponent([loc.street, loc.city].filter(Boolean).join(', '));
   return q ? `https://maps.google.com/?q=${q}` : null;
 }

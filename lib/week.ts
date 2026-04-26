@@ -34,20 +34,22 @@ export function daysOfWeek(anchor: Date | string = new Date()) {
 }
 
 /** Days the calendar should render for a given view, anchored on `anchor`.
- *  - schedule: anchor + next 27 (4-week vertical agenda — long-form scroll)
+ *  - schedule: Sun→Thu of the anchor's school week (5 days). Paginated by
+ *              week — helpers tap prev/next to flip through weeks rather
+ *              than endlessly scrolling.
  *  - day:      anchor only
  *  - 3day:     anchor + next 2 (3 columns side-by-side)
  *  - week:     anchor + next 6 (7 columns side-by-side)
- *
- * The schedule view spans 4 weeks so helpers can scroll forward through the
- * month without paging. Past days are filtered out at the page level so
- * yesterday's pickups never appear.
  */
 export function daysForView(view: CalView, anchor: Date | string = new Date()): Date[] {
   const a = typeof anchor === 'string' ? parseISO(anchor) : anchor;
   if (view === 'day') return [a];
   if (view === '3day') return [0, 1, 2].map((i) => addDays(a, i));
-  if (view === 'schedule') return Array.from({ length: 28 }, (_, i) => addDays(a, i));
+  if (view === 'schedule') {
+    // Snap to the Sunday of the anchor's week, then take Sun–Thu.
+    const sunday = weekStart(a);
+    return [0, 1, 2, 3, 4].map((i) => addDays(sunday, i));
+  }
   // week = 7 columns side-by-side
   return [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(a, i));
 }
@@ -56,7 +58,7 @@ export function daysForView(view: CalView, anchor: Date | string = new Date()): 
 export function stepForView(view: CalView): number {
   if (view === 'day') return 1;
   if (view === '3day') return 3;
-  return 7; // schedule + week
+  return 7; // schedule + week — both step a full week
 }
 
 /**

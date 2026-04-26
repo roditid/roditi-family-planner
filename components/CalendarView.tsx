@@ -62,15 +62,31 @@ export default function CalendarView({ view, anchor, slots, currentUserId, curre
         {view === 'week'     && <ColumnsLayout days={days} byDay={byDay} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} isAdmin={isAdmin} cols={7} />}
       </SwipeArea>
 
-      {filtered.length === 0 && (
-        <div className="card p-8 text-center mt-4">
-          <div className="text-3xl mb-2">🌿</div>
-          <p className="font-medium">{onlyMine ? "You're not on any pickups yet." : "Nothing scheduled."}</p>
-          <p className="text-sm text-ink-700/65 mt-1">
-            {onlyMine ? 'Tap any open pickup below to claim it.' : 'Quiet stretch — check next week.'}
-          </p>
-        </div>
-      )}
+      {filtered.length === 0 && (() => {
+        // Three different "empty" reasons need three different messages:
+        //   1. onlyMine — helper has nothing claimed (raw doesn't matter)
+        //   2. raw > 0 but everything is past — pickups happened, day's done
+        //   3. raw === 0 — truly nothing scheduled
+        const allPast = !onlyMine && slots.length > 0 && upcoming.length === 0;
+        const headline = onlyMine
+          ? "You're not on any pickups yet."
+          : allPast
+            ? 'Today\'s pickups are all done.'
+            : 'Nothing scheduled.';
+        const sub = onlyMine
+          ? 'Tap any open pickup below to claim it.'
+          : allPast
+            ? 'Nice work. Check tomorrow or next week.'
+            : 'Quiet stretch — check next week.';
+        const icon = allPast ? '✓' : '🌿';
+        return (
+          <div className="card p-8 text-center mt-4">
+            <div className="text-3xl mb-2">{icon}</div>
+            <p className="font-medium">{headline}</p>
+            <p className="text-sm text-ink-700/65 mt-1">{sub}</p>
+          </div>
+        );
+      })()}
     </div>
   );
 }

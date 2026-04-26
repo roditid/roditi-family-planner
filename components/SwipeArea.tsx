@@ -27,11 +27,6 @@ export default function SwipeArea({
   }
 
   useEffect(() => {
-    // Schedule view is a forward-scrolling 4-week list — there's nothing to
-    // swipe to. Skip the listener entirely so vertical reading doesn't
-    // accidentally trigger horizontal nav.
-    if (view === 'schedule') return;
-
     const el = ref.current;
     if (!el) return;
 
