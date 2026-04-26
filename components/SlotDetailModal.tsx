@@ -80,7 +80,11 @@ export default function SlotDetailModal({
           <div className="h-1 w-10 rounded-full bg-black/15" />
         </div>
 
-        <div className="px-5 pt-2 pb-3 sm:px-6 sm:pt-4 sm:pb-3 space-y-4 overflow-y-auto">
+        {/* min-h-0 is essential — grid items default to min-content size,
+            which would let the body grow past its 1fr row instead of
+            scrolling. With min-h-0 the row constrains the body and
+            overflow-y-auto kicks in. Same trick as flex+min-h-0. */}
+        <div className="px-5 pt-2 pb-3 sm:px-6 sm:pt-4 sm:pb-3 space-y-4 overflow-y-auto min-h-0">
           {/* Confirmed banner — shown when this is now your pickup */}
           {ownership === 'mine' && (
             <div className="rounded-xl bg-sage-500/10 border border-sage-500/30 px-3.5 py-2.5 flex items-center gap-2.5">
