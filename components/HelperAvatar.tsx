@@ -1,6 +1,12 @@
+'use client';
+
 /**
  * Round portrait of a helper. The face is the identifier — Levanah's hand
  * with the kids reads way faster than "Vovo (Levanah)" in 11px text.
+ *
+ * Marked 'use client' because we attach an onError handler to the <img> so
+ * a missing photo file gracefully falls back to the initial-letter circle
+ * instead of showing a broken-image icon.
  *
  * Falls back gracefully:
  *   • photo_url present → real photo
