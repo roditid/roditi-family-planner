@@ -441,16 +441,20 @@ function DetailLoc({ label, loc, byTime, endTime, activityTitle }: {
   }
   const href = mapsHref(loc);
   const addr = (formatAddress(loc) ?? '');
-  // Split notes on sentence breaks so each fact (door code, ganenet, etc.)
+  // Split notes on sentence breaks so each fact (door code, contact, etc.)
   // renders on its own line — easier to scan, easier to screenshot. We
   // drop opening-hours lines ("Open 07:30 – 16:00", "Dismisses 16:15")
-  // since the helper doesn't need to know when the Gan opens — they have
-  // a "by HH:MM" badge in the corner that already conveys the dismissal.
+  // since the helper doesn't need to know when the Gan opens — the
+  // "by HH:MM" badge in the corner already conveys the dismissal.
+  // We also strip the "Ganenet:" / "Coach:" / "Teacher:" prefix from
+  // contact lines — the name + phone speaks for itself ("Sari
+  // +972 52-253-2439").
   const noteLines: string[] = (loc.notes ?? '')
     .split(/\n+|(?<=[\.\!])\s+/)
     .map((s: string) => s.trim())
     .filter(Boolean)
-    .filter((line: string) => !/^(open|dismiss(?:es)?|closes?|hours?)\b/i.test(line));
+    .filter((line: string) => !/^(open|dismiss(?:es)?|closes?|hours?)\b/i.test(line))
+    .map((line: string) => line.replace(/^(ganenet|trainer|coach|teacher|guide|instructor|nanny|contact)\s*:\s*/i, ''));
   // Build a small time-badge string for the corner (e.g. "by 16:30" for a
   // sibling Gan, or "Soccer 17:00 – 18:30" for an activity stop).
   let badge: string | null = null;
