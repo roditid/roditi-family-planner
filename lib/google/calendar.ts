@@ -254,14 +254,25 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
       // The helper picks the kid up from the Gan at dismissal time, walks to
       // the activity (the "via" stop), waits, then walks them home.
       //
-      // pickup_time: prefer the kid's gan_dismissal_time (so the helper isn't
-      // late picking the kid up at the Gan). Fall back to event start time if
-      // the kid has no Gan dismissal recorded yet.
+      // pickup_time logic:
+      //   • Prefer the kid's gan_dismissal_time so the helper isn't standing
+      //     at the Gan while the kid is still inside.
+      //   • EXCEPTION: when the activity starts at or before the dismissal
+      //     time, the helper would be late if they collected at dismissal.
+      //     Pull pickup back 15 min before activity start so there's transit
+      //     time (Ganenets allow early pickup when there's an activity to
+      //     get to). Adam @ 16:30 dismissal + Ninja @ 16:30 → pickup 16:15.
       const childRecord = match.child as any;
       const ganDismissal = childRecord.gan_dismissal_time as string | null;
-      const slotPickupTime = ganDismissal ?? pickupTime;
+      const slotPickupTime = (ganDismissal && pickupTime <= ganDismissal)
+        ? subtractMinutes(pickupTime, 15)
+        : (ganDismissal ?? pickupTime);
       const slotPickupLoc = childRecord.school_location_id ?? match.activity?.default_pickup_location_id ?? null;
       const slotViaLoc = match.activity?.default_destination_location_id ?? null;
+      // When the activity has no structured destination (one-off events like
+      // a school picnic), fall back to the calendar event's free-text
+      // location so the helper still sees where to go.
+      const slotViaText = !slotViaLoc && ev.location ? ev.location : null;
       const slotDestLoc = childRecord.home_location_id ?? null;
 
       // Pull per-event one-offs out of the calendar description. Recognized
@@ -313,6 +324,7 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
         via_location_id: slotViaLoc,
         destination_location_id: slotDestLoc,
         pickup_location_text: ev.location ?? null,  // preserve raw event location as fallback
+        via_location_text: slotViaText,
         notes: match.activity?.notes ?? null,
         pack_notes: pack_notes || null,
         parent_notes: parent_notes || null,
@@ -477,6 +489,16 @@ function isFullPresenceTitle(title: string): boolean {
  *   "Bring: water bottle\nWear: red shirt"  +  ['pack','bring','wear']
  *     → "water bottle. red shirt"
  */
+/** Subtract `minutes` from an "HH:MM:SS" time string. Returns "HH:MM:SS". */
+function subtractMinutes(timeHHMMSS: string, minutes: number): string {
+  const [h, m] = timeHHMMSS.split(':').map(Number);
+  let total = h * 60 + m - minutes;
+  if (total < 0) total = 0;
+  const h2 = Math.floor(total / 60);
+  const m2 = total % 60;
+  return `${String(h2).padStart(2, '0')}:${String(m2).padStart(2, '0')}:00`;
+}
+
 function pickLabeledLines(desc: string, labels: string[]): string {
   if (!desc) return '';
   const re = new RegExp(`^\\s*(?:${labels.join('|')})\\s*:\\s*(.+?)\\s*$`, 'gim');
