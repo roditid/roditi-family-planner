@@ -279,10 +279,16 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
 
         {/* CONTENT COLUMN */}
         <div className="flex-1 min-w-0 space-y-2">
-          {/* Time headline + relative-when + duration */}
+          {/* Time headline + relative-when. Activity hours render as a SECOND
+              line below so the helper sees two distinct things:
+                • when they pick the kid up (the big number — Gan dismissal)
+                • when the activity itself runs (smaller, e.g. "Soccer 17:00 – 18:30") */}
           <div className="flex items-baseline gap-2.5 flex-wrap">
             <span className="font-display text-3xl sm:text-4xl tabular-nums leading-none tracking-tight">
               {prettyTime(slot.pickup_time)}
+            </span>
+            <span className={`text-[10px] uppercase tracking-[0.1em] font-bold ${ownership === 'mine' ? 'opacity-70' : 'text-ink-700/45'}`}>
+              pick up
             </span>
             {soon && (
               <span
@@ -296,12 +302,28 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
                 {soon.label}
               </span>
             )}
-            {slot.end_time && (
-              <span className={`text-[11px] tabular-nums uppercase tracking-[0.08em] font-semibold ${ownership === 'mine' ? 'opacity-70' : 'text-ink-700/50'}`}>
-                → {prettyTime(slot.end_time)}
-              </span>
-            )}
           </div>
+          {(slot.activity_start_time || slot.end_time) && (() => {
+            // Show activity hours only when distinct from pickup_time. For
+            // Gan→Home defaults, pickup_time === activity_start_time and
+            // there's no real activity to advertise.
+            const aStart = slot.activity_start_time;
+            const aEnd = slot.end_time;
+            if (!aStart || aStart === slot.pickup_time) {
+              if (!aEnd) return null;
+              return (
+                <div className={`text-[12px] tabular-nums ${ownership === 'mine' ? 'opacity-75' : 'text-ink-700/55'}`}>
+                  ends {prettyTime(aEnd)}
+                </div>
+              );
+            }
+            return (
+              <div className={`text-[12px] tabular-nums leading-none ${ownership === 'mine' ? 'opacity-80' : 'text-ink-700/60'}`}>
+                <span className="uppercase tracking-[0.1em] font-bold mr-1.5 opacity-80">{slot.title}</span>
+                {prettyTime(aStart)}{aEnd && <> – {prettyTime(aEnd)}</>}
+              </div>
+            );
+          })()}
 
           {/* Kid name(s) (small caps) + activity */}
           <div className="space-y-0.5">
@@ -323,20 +345,34 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
             </div>
           </div>
 
-          {/* Locations — full route. For combined sibling trips this lists
-              every Gan stop, then the destination. For activity trips it's
-              from → via → to. */}
+          {/* Locations — full route with a per-stop time annotation when the
+              stop is one of the kids' Ganim (their dismissal). The Gan times
+              Paula gave us are MAX arrival times — Yali 16:00, Liam 16:15,
+              Adam 16:30 — so showing them at each stop tells the helper
+              exactly how to pace the walk. */}
           <div className={`text-sm space-y-1 pt-0.5 ${ownership === 'mine' ? 'opacity-95' : ''}`}>
             {(() => {
-              const stops: { label: string; loc: any }[] = [];
-              if (pickup) stops.push({ label: 'from', loc: pickup });
-              // Additional kids' Ganim are intermediate stops on a combined trip.
+              type Stop = { label: string; loc: any; byTime: string | null };
+              const stops: Stop[] = [];
+              if (pickup) {
+                // Primary kid's Gan: pickup_time IS their dismissal.
+                const fromGan = pickup === slot.pickup_location;
+                stops.push({
+                  label: 'from',
+                  loc: pickup,
+                  byTime: fromGan ? slot.pickup_time : null,
+                });
+              }
               for (const k of slot.additional_children ?? []) {
                 const sl = (k as any).school_location;
-                if (sl) stops.push({ label: 'then', loc: sl });
+                if (sl) stops.push({
+                  label: 'then',
+                  loc: sl,
+                  byTime: (k as any).gan_dismissal_time ?? null,
+                });
               }
-              if (via) stops.push({ label: 'via', loc: via });
-              if (dest) stops.push({ label: stops.length ? 'to' : 'to', loc: dest });
+              if (via) stops.push({ label: 'via', loc: via, byTime: null });
+              if (dest) stops.push({ label: 'to', loc: dest, byTime: null });
               if (!pickup) {
                 return (
                   <div className={`flex items-center gap-1.5 ${ownership === 'mine' ? 'text-cream-50/95' : 'text-coral-600'}`}>
@@ -346,7 +382,7 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
                 );
               }
               return stops.map((s, i) => (
-                <LocLine key={i} label={s.label} loc={s.loc} mine={ownership === 'mine'} />
+                <LocLine key={i} label={s.label} loc={s.loc} byTime={s.byTime} mine={ownership === 'mine'} />
               ));
             })()}
           </div>
@@ -401,7 +437,7 @@ function firstNameOf(name: string | null | undefined): string {
   return name.split(/[\s(]/)[0] || name;
 }
 
-function LocLine({ label, loc, mine }: { label: string; loc: any; mine: boolean }) {
+function LocLine({ label, loc, mine, byTime }: { label: string; loc: any; mine: boolean; byTime?: string | null }) {
   const href = mapsHref(loc);
   const addr = [loc.street, loc.city].filter(Boolean).join(', ');
   return (
@@ -411,6 +447,11 @@ function LocLine({ label, loc, mine }: { label: string; loc: any; mine: boolean 
           {label}
         </span>
         <span className="flex-1 min-w-0">
+          {byTime && (
+            <span className={`tabular-nums font-bold mr-1.5 ${mine ? 'opacity-90' : 'text-ink-900'}`}>
+              by {prettyTime(byTime)}
+            </span>
+          )}
           <span className="font-medium">{loc.label}</span>
           {addr && <span className={`ml-1.5 ${mine ? 'opacity-75' : 'text-ink-700/60'}`}>· {addr}</span>}
           {href && (

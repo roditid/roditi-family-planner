@@ -16,6 +16,7 @@ import { supabaseServer } from '@/lib/supabase/server';
 import { fetchSlots } from '@/lib/slots';
 import { prettyDay, prettyTime } from '@/lib/week';
 import AssignmentPicker from '@/components/AssignmentPicker';
+import { buildWeeklySummaryForUser } from '@/lib/summaries';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,6 +58,22 @@ export default async function UnassignedPickupsPage() {
     byDate.get(s.date)!.push(s);
   }
 
+  // Pre-build Liezel's weekly summary so the WhatsApp button can hand-off
+  // a fully-formed message to wa.me (no Twilio required). Looks her up by
+  // helper_kind='nanny' inside this household.
+  const liezel = (members ?? [])
+    .map((m: any) => m.profiles)
+    .find((p: any) => p && (p.full_name ?? '').toLowerCase().startsWith('liezel'));
+  const liezelPhone = (liezel?.phone_number ?? '').replace(/[^\d]/g, '');
+  let liezelMessage = '';
+  if (liezel) {
+    const { body } = await buildWeeklySummaryForUser(sb, ctx.household!.id, liezel.id, (liezel.full_name ?? 'Liezel').split(' ')[0]);
+    liezelMessage = body;
+  }
+  const liezelWaHref = liezelPhone && liezelMessage
+    ? `https://wa.me/${liezelPhone}?text=${encodeURIComponent(liezelMessage)}`
+    : null;
+
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-3 flex-wrap">
@@ -70,6 +87,23 @@ export default async function UnassignedPickupsPage() {
         </div>
         <Link href="/admin" className="text-sm text-sage-700 hover:underline">← Admin</Link>
       </div>
+
+      {/* Hand-off to Liezel via WhatsApp — no automation, just a tap-and-send
+          link that opens WhatsApp pre-filled with her current weekly summary.
+          Replaces the auto-Liezel-email until we wire up Twilio. */}
+      {liezelWaHref && (
+        <a
+          href={liezelWaHref}
+          target="_blank" rel="noreferrer"
+          className="flex items-center justify-between gap-3 rounded-2xl bg-[#25D366] hover:bg-[#1ebe57] text-white px-4 py-3.5 transition active:scale-[0.99]"
+        >
+          <div className="leading-tight">
+            <div className="font-semibold">Send Liezel her weekly summary on WhatsApp</div>
+            <div className="text-xs opacity-90 mt-0.5">Opens WhatsApp with the full list pre-filled — tap send.</div>
+          </div>
+          <span className="text-xl">→</span>
+        </a>
+      )}
 
       {unassigned.length === 0 ? (
         <div className="rounded-2xl bg-cream-200/40 p-8 text-center">

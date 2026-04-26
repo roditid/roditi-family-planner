@@ -102,7 +102,15 @@ export default function SlotDetailModal({
               </div>
               <div className="font-display text-2xl sm:text-3xl leading-tight tracking-tight">{slot.title}</div>
               <div className="text-sm text-ink-700/70 mt-0.5 tabular-nums">
-                {prettyTime(slot.pickup_time)}{slot.end_time && ` – ends ${prettyTime(slot.end_time)}`}
+                <span className="font-semibold text-ink-900">Pick up {prettyTime(slot.pickup_time)}</span>
+                {slot.activity_start_time && slot.activity_start_time !== slot.pickup_time && (
+                  <span className="ml-2">
+                    · {slot.title} {prettyTime(slot.activity_start_time)}{slot.end_time && ` – ${prettyTime(slot.end_time)}`}
+                  </span>
+                )}
+                {(!slot.activity_start_time || slot.activity_start_time === slot.pickup_time) && slot.end_time && (
+                  <span className="ml-2">· ends {prettyTime(slot.end_time)}</span>
+                )}
               </div>
             </div>
             <button
@@ -114,12 +122,18 @@ export default function SlotDetailModal({
             </button>
           </div>
 
-          {/* Stops: pickup → (additional siblings' Ganim) → via → drop-off */}
-          <DetailLoc label="Pick up from" loc={pickup} />
+          {/* Stops: pickup → (additional siblings' Ganim) → via → drop-off.
+              Each kid's stop carries their max-arrival time so the helper
+              can pace the walk: Yali by 16:00, Liam by 16:15, Adam by 16:30. */}
+          <DetailLoc label={`Pick up from · by ${prettyTime(slot.pickup_time)}`} loc={pickup} />
           {(slot.additional_children ?? []).map((kid: any) => kid.school_location && (
-            <DetailLoc key={kid.id} label={`Then pick up ${kid.name}`} loc={kid.school_location} />
+            <DetailLoc
+              key={kid.id}
+              label={`Then pick up ${kid.name}${kid.gan_dismissal_time ? ` · by ${prettyTime(kid.gan_dismissal_time)}` : ''}`}
+              loc={kid.school_location}
+            />
           ))}
-          {via && <DetailLoc label="Then go to" loc={via} />}
+          {via && <DetailLoc label={`Then go to${slot.activity_start_time ? ` · ${slot.title} ${prettyTime(slot.activity_start_time)}${slot.end_time ? ` – ${prettyTime(slot.end_time)}` : ''}` : ''}`} loc={via} />}
           <DetailLoc label={via || (slot.additional_children ?? []).length > 0 ? 'Then drop off at' : 'Drop off at'} loc={dest} />
 
           {/* Stroller note — only when Yali is in the trip */}

@@ -81,7 +81,9 @@ export interface PickupSlot {
   source: 'calendar' | 'manual';
   title: string;
   date: string;          // yyyy-mm-dd
-  pickup_time: string;   // HH:mm:ss
+  pickup_time: string;   // HH:mm:ss — when helper picks the kid up
+  /** Actual activity start (e.g. Soccer 17:00). Distinct from pickup_time. */
+  activity_start_time: string | null;
   end_time: string | null;
   pickup_location_id: string | null;
   via_location_id: string | null;

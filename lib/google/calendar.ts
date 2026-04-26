@@ -215,6 +215,27 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
       const pack_notes = pickLabeledLines(desc, ['pack', 'bring', 'wear']);
       const parent_notes = pickLabeledLines(desc, ['note', 'notes']);
 
+      // If Paula prefixed the event with "[Helper Name] " in her calendar,
+      // honour it: detect the prefix, look up the matching helper by first
+      // name, and ensure that helper is the active assignment for this slot.
+      // Resolved BEFORE the slot upsert so we have all the data to wire up
+      // the assignment in the same sync pass.
+      const prefixMatch = title.match(/^\s*\[([^\]]+)\]\s*/);
+      const prefixedFirstName = prefixMatch ? prefixMatch[1].trim().split(/\s+/)[0] : null;
+      let prefixedHelperId: string | null = null;
+      if (prefixedFirstName) {
+        const { data: candidates } = await sb
+          .from('household_members')
+          .select('user_id, profiles:user_id(id, full_name)')
+          .eq('household_id', householdId);
+        const lower = prefixedFirstName.toLowerCase();
+        const m = (candidates ?? []).find((c: any) => {
+          const fn = (c.profiles?.full_name ?? '').toLowerCase();
+          return fn.startsWith(lower) || fn.includes(`(${lower}`);
+        });
+        prefixedHelperId = m?.user_id ?? null;
+      }
+
       const { error } = await sb.from('pickup_slots').upsert({
         household_id: householdId,
         child_id: match.child.id,
@@ -224,6 +245,10 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
         title: displayTitle,
         date,
         pickup_time: slotPickupTime,
+        // pickupTime here is the calendar event's start (the activity itself);
+        // helpful for the chip + modal to show "Soccer 17:00–18:30" alongside
+        // the helper's earlier Gan-pickup time.
+        activity_start_time: pickupTime,
         end_time: endTime,
         pickup_location_id: slotPickupLoc,
         via_location_id: slotViaLoc,
@@ -234,6 +259,43 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
         parent_notes: parent_notes || null,
       }, { onConflict: 'source_event_id' });
       if (!error) slotsCreated++;
+
+      // Calendar-driven assignment: if Paula prefixed the event with a
+      // helper's name in brackets, ensure that helper is the active
+      // assignment for this slot. We look up the slot we just upserted by
+      // source_event_id, then reconcile the assignment if it doesn't match.
+      if (prefixedHelperId) {
+        try {
+          const { data: slotRow } = await sb
+            .from('pickup_slots')
+            .select('id, status')
+            .eq('source_event_id', eventRow!.id)
+            .maybeSingle();
+          if (slotRow) {
+            const { data: existing } = await sb
+              .from('slot_assignments')
+              .select('id, assigned_to_user_id')
+              .eq('pickup_slot_id', slotRow.id)
+              .eq('status', 'active')
+              .maybeSingle();
+            if (existing?.assigned_to_user_id !== prefixedHelperId) {
+              if (existing) {
+                await sb.from('slot_assignments')
+                  .update({ status: 'overridden', released_at: new Date().toISOString() })
+                  .eq('id', existing.id);
+              }
+              await sb.from('slot_assignments').insert({
+                pickup_slot_id: slotRow.id,
+                assigned_to_user_id: prefixedHelperId,
+                status: 'active',
+              });
+              await sb.from('pickup_slots').update({ status: 'claimed' }).eq('id', slotRow.id);
+            }
+          }
+        } catch (e) {
+          console.error('calendar-prefix auto-claim failed', e);
+        }
+      }
     }
   }
 

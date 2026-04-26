@@ -55,14 +55,51 @@ for a Gan holiday.
 - Channel: same as the rest of the notification stack (email today,
   WhatsApp/SMS once that's set up).
 
+### 4. Calendar invite to claimer
+**Why:** When Dani (or any helper) claims a pickup, the source Google Calendar
+event should add them as an attendee — they get a real calendar invite with
+the kid + activity + location, can see it on their own phone calendar, and
+get the standard Google reminders.
+
+**What to build:**
+- On claim: `events.patch` with the helper's email appended to `attendees[]`,
+  `sendUpdates: 'all'` so Google emails them the invite.
+- On unclaim/reassign: remove the previous helper from `attendees[]`.
+- Requires the calendar.events write scope (already shipped, but Paula
+  still needs to reconnect at /admin/calendar to grant it).
+
+### 5. Special / one-off pickups (early Gan dismissal, etc.)
+**Why:** Some days a Gan dismisses early — e.g. Liam's Gan ends at 12:30
+instead of 16:15. The default Gan→Home slot uses 16:15, which would mean
+Liam waits 4 hours.
+
+**What to build:**
+- Admin UI: "Add early dismissal" on /admin or per-kid that sets a custom
+  pickup_time + override note for a specific date.
+- Honor it in the daily defaults generator: when a kid has an early-dismissal
+  override on a date, use that as their pickup_time AND adjust sibling-combine
+  ordering accordingly.
+- Could be modelled as a row in a new `child_dismissal_overrides` table
+  (kid_id, date, dismissal_time, reason).
+
 ## Decisions still open
 
 - **Notification channel** — currently email. Twilio SMS or Twilio WhatsApp
-  on the table; Paula deciding.
-- **Photo of Yali** — currently shrunk in CSS so framing matches the boys.
-  Could re-crop the source file for a cleaner result.
+  on the table; Paula deciding. In the meantime, /admin/unassigned has a
+  tap-and-send WhatsApp button for Liezel's summary.
+- **Photo of Yali** — replaced with the rocking-horse portrait. Per-kid
+  object-position tuned in CSS.
 
 ## Recently shipped (most recent first)
+
+- Calendar prefix → auto-claim. When Paula prefixes a calendar event with
+  `[Helper Name] …`, the next sync claims that slot for the named helper.
+- Activity start/end time on chip + modal (separate from the helper's earlier
+  Gan-pickup time).
+- Per-kid max-arrival times on every Gan stop in a combined Gan→Home trip.
+- Send Liezel her summary on WhatsApp — tap-and-send button on /admin/unassigned.
+- Drahi/Neve Tzedek note cleanup — the leftover "Judo (Liam) and Ninja (Adam)
+  take place here" line is gone.
 
 - Calendar event title prefix on claim/unclaim/reassign — Paula's calendar
   shows `[Helper] Activity - Kid` immediately. Requires re-authorization
