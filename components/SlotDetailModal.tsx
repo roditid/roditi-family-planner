@@ -123,17 +123,28 @@ export default function SlotDetailModal({
           </div>
 
           {/* Stops: pickup → (additional siblings' Ganim) → via → drop-off.
-              Each kid's stop carries their max-arrival time so the helper
-              can pace the walk: Yali by 16:00, Liam by 16:15, Adam by 16:30. */}
-          <DetailLoc label={`Pick up from · by ${prettyTime(slot.pickup_time)}`} loc={pickup} />
+              Sibling stops carry a "by HH:MM" badge in the corner of the
+              card so the helper can pace the walk. The first stop's time
+              is already shown in the modal header (the big "Pick up 16:00"
+              line) so we don't repeat it here. */}
+          <DetailLoc label="Pick up from" loc={pickup} />
           {(slot.additional_children ?? []).map((kid: any) => kid.school_location && (
             <DetailLoc
               key={kid.id}
-              label={`Then pick up ${kid.name}${kid.gan_dismissal_time ? ` · by ${prettyTime(kid.gan_dismissal_time)}` : ''}`}
+              label={`Then pick up ${kid.name}`}
               loc={kid.school_location}
+              byTime={kid.gan_dismissal_time ?? null}
             />
           ))}
-          {via && <DetailLoc label={`Then go to${slot.activity_start_time ? ` · ${slot.title} ${prettyTime(slot.activity_start_time)}${slot.end_time ? ` – ${prettyTime(slot.end_time)}` : ''}` : ''}`} loc={via} />}
+          {via && (
+            <DetailLoc
+              label="Then go to"
+              loc={via}
+              byTime={slot.activity_start_time ?? null}
+              endTime={slot.end_time ?? null}
+              activityTitle={slot.title}
+            />
+          )}
           <DetailLoc label={via || (slot.additional_children ?? []).length > 0 ? 'Then drop off at' : 'Drop off at'} loc={dest} />
 
           {/* Full-presence indicator — special at-Gan activities (Shavuot,
@@ -412,7 +423,13 @@ function StrollerNote() {
   );
 }
 
-function DetailLoc({ label, loc }: { label: string; loc: any }) {
+function DetailLoc({ label, loc, byTime, endTime, activityTitle }: {
+  label: string;
+  loc: any;
+  byTime?: string | null;
+  endTime?: string | null;
+  activityTitle?: string;
+}) {
   if (!loc) {
     return (
       <div className="rounded-xl border border-coral-400/30 bg-coral-400/8 p-3 text-coral-600">
@@ -429,9 +446,24 @@ function DetailLoc({ label, loc }: { label: string; loc: any }) {
     .split(/\n+|(?<=[\.\!])\s+/)
     .map((s: string) => s.trim())
     .filter(Boolean);
+  // Build a small time-badge string for the corner (e.g. "by 16:30" for a
+  // sibling Gan, or "Soccer 17:00 – 18:30" for an activity stop).
+  let badge: string | null = null;
+  if (byTime) {
+    badge = activityTitle
+      ? `${activityTitle} ${prettyTime(byTime)}${endTime ? ` – ${prettyTime(endTime)}` : ''}`
+      : `by ${prettyTime(byTime)}`;
+  }
   return (
     <div className="rounded-xl bg-cream-200/40 p-3.5">
-      <div className="text-[10px] uppercase tracking-wider text-ink-700/55 font-semibold mb-1">{label}</div>
+      <div className="flex items-baseline justify-between gap-2 mb-1">
+        <div className="text-[10px] uppercase tracking-wider text-ink-700/55 font-semibold">{label}</div>
+        {badge && (
+          <div className="text-[11px] tabular-nums font-bold text-ink-900 bg-cream-50 rounded-full px-2 py-0.5 leading-none shrink-0">
+            {badge}
+          </div>
+        )}
+      </div>
       <div className="font-display text-lg leading-tight">{loc.label}</div>
       {addr && <div className="text-sm text-ink-700/70 mt-0.5">{addr}</div>}
       {noteLines.length > 0 && (

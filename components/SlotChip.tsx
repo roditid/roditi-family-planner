@@ -350,23 +350,17 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
             </div>
           </div>
 
-          {/* Locations — full route with a per-stop time annotation when the
-              stop is one of the kids' Ganim (their dismissal). The Gan times
-              Paula gave us are MAX arrival times — Yali 16:00, Liam 16:15,
-              Adam 16:30 — so showing them at each stop tells the helper
-              exactly how to pace the walk. */}
+          {/* Locations — full route. The headline time at the top already
+              shows the FIRST stop's pickup time, so we suppress the "by
+              HH:MM" prefix on the very first stop. Subsequent Gan stops
+              for combined siblings carry "· by HH:MM" at the END of the
+              line (after the address) so the eye reads location-then-time. */}
           <div className={`text-sm space-y-1 pt-0.5 ${ownership === 'mine' ? 'opacity-95' : ''}`}>
             {(() => {
               type Stop = { label: string; loc: any; byTime: string | null };
               const stops: Stop[] = [];
               if (pickup) {
-                // Primary kid's Gan: pickup_time IS their dismissal.
-                const fromGan = pickup === slot.pickup_location;
-                stops.push({
-                  label: 'from',
-                  loc: pickup,
-                  byTime: fromGan ? slot.pickup_time : null,
-                });
+                stops.push({ label: 'from', loc: pickup, byTime: null });
               }
               for (const k of slot.additional_children ?? []) {
                 const sl = (k as any).school_location;
@@ -452,13 +446,13 @@ function LocLine({ label, loc, mine, byTime }: { label: string; loc: any; mine: 
           {label}
         </span>
         <span className="flex-1 min-w-0">
-          {byTime && (
-            <span className={`tabular-nums font-bold mr-1.5 ${mine ? 'opacity-90' : 'text-ink-900'}`}>
-              by {prettyTime(byTime)}
-            </span>
-          )}
           <span className="font-medium">{loc.label}</span>
           {addr && <span className={`ml-1.5 ${mine ? 'opacity-75' : 'text-ink-700/60'}`}>· {addr}</span>}
+          {byTime && (
+            <span className={`ml-1.5 tabular-nums font-bold ${mine ? 'opacity-95' : 'text-ink-900'}`}>
+              · by {prettyTime(byTime)}
+            </span>
+          )}
           {href && (
             <a
               href={href} target="_blank" rel="noreferrer"
