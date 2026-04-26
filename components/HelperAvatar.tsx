@@ -1,37 +1,56 @@
 'use client';
 
 /**
- * Round portrait of a helper. The face is the identifier — Levanah's hand
- * with the kids reads way faster than "Vovo (Levanah)" in 11px text.
+ * Portrait of a helper. The face is the identifier — Levanah's hand with
+ * the kids reads way faster than "Vovo (Levanah)" in 11px text.
+ *
+ * Two shapes:
+ *   • `shape="circle"` (default) — round, sized by `size` px. Used inline
+ *     in pills, status rows, dropdown rows.
+ *   • `shape="rect"` — rounded rectangle (3:4 portrait by default), sized
+ *     by `width`/`height`. Used as the editorial hero next to the
+ *     greeting headline ("Hi, Paula") so the helper feels seen on landing.
  *
  * Marked 'use client' because we attach an onError handler to the <img> so
- * a missing photo file gracefully falls back to the initial-letter circle
- * instead of showing a broken-image icon.
- *
- * Falls back gracefully:
- *   • photo_url present → real photo
- *   • photo missing → initial letter on a sage circle
- *
- * Sized in pixels. Always renders as a circle and crops to face center.
+ * a missing photo file gracefully falls back to the initial-letter tile.
  */
 
 interface Props {
   name: string;
   photoUrl?: string | null;
+  /** Used when shape='circle'. */
   size?: number;
+  /** Used when shape='rect'. */
+  width?: number;
+  height?: number;
   ring?: boolean;
+  shape?: 'circle' | 'rect';
 }
 
-export default function HelperAvatar({ name, photoUrl, size = 28, ring = false }: Props) {
-  const px = `${size}px`;
+export default function HelperAvatar({
+  name,
+  photoUrl,
+  size = 28,
+  width,
+  height,
+  ring = false,
+  shape = 'circle',
+}: Props) {
+  const isRect = shape === 'rect';
+  const w = isRect ? (width ?? 96) : size;
+  const h = isRect ? (height ?? Math.round((width ?? 96) * 4 / 3)) : size;
+  const radiusClass = isRect ? 'rounded-2xl' : 'rounded-full';
+
   return (
     <span
-      className={`inline-block rounded-full overflow-hidden shrink-0 align-middle ${ring ? 'ring-2 ring-cream-50' : ''}`}
+      className={`inline-block ${radiusClass} overflow-hidden shrink-0 align-middle ${ring ? 'ring-2 ring-cream-50' : ''}`}
       style={{
-        width: px,
-        height: px,
+        width: `${w}px`,
+        height: `${h}px`,
         background: '#7FA87D',
-        boxShadow: '0 1px 2px rgba(20,20,16,0.2)',
+        boxShadow: isRect
+          ? '0 1px 3px rgba(20,20,16,0.18)'
+          : '0 1px 2px rgba(20,20,16,0.2)',
       }}
       aria-label={name}
     >
@@ -49,8 +68,8 @@ export default function HelperAvatar({ name, photoUrl, size = 28, ring = false }
         />
       ) : (
         <span
-          className="w-full h-full grid place-items-center text-cream-50 font-bold"
-          style={{ fontSize: size * 0.45 }}
+          className="w-full h-full grid place-items-center text-cream-50 font-bold font-display"
+          style={{ fontSize: Math.min(w, h) * (isRect ? 0.5 : 0.45) }}
         >
           {(name ?? '?').slice(0, 1).toUpperCase()}
         </span>

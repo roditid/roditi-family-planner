@@ -47,8 +47,17 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
 
   return (
     <div className="space-y-3">
-      <header className="px-1 flex items-center gap-3.5 sm:gap-4">
-        <HelperAvatar name={ctx.profile?.full_name ?? firstName} photoUrl={ctx.profile?.photo_url} size={56} ring />
+      <header className="px-1 flex items-center gap-4 sm:gap-5">
+        {/* Editorial helper portrait — rectangular like the kid photos on
+            the schedule chips, so the page lands with a face, not just text. */}
+        <HelperAvatar
+          name={ctx.profile?.full_name ?? firstName}
+          photoUrl={ctx.profile?.photo_url}
+          shape="rect"
+          width={88}
+          height={112}
+          ring
+        />
         <div className="min-w-0">
           <h1 className="font-display text-3xl sm:text-4xl tracking-tight inline-flex items-baseline gap-2">
             Hi, {firstName}
