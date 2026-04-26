@@ -85,22 +85,54 @@ export default async function NextPickupBanner({
   const tone = soon?.urgent ? 'urgent' : isMine ? 'mine' : 'family';
   const label = isMine ? "You're on" : isAdmin ? 'Next family pickup' : 'Next pickup';
 
+  // Build a compact route summary "Gan Yali → Drahi → Home" for the banner
+  // body, plus the first stop's address so the helper sees where they need
+  // to actually be standing.
+  const stops: { label: string; addr: string | null }[] = [];
+  if (slot.pickup_location) {
+    stops.push({
+      label: slot.pickup_location.label,
+      addr: [slot.pickup_location.street, slot.pickup_location.city].filter(Boolean).join(', ') || null,
+    });
+  } else if (slot.pickup_location_text) {
+    stops.push({ label: slot.pickup_location_text, addr: null });
+  }
+  for (const k of slot.additional_children ?? []) {
+    const sl = (k as any).school_location;
+    if (sl) stops.push({ label: sl.label, addr: [sl.street, sl.city].filter(Boolean).join(', ') || null });
+  }
+  if (slot.via_location) {
+    stops.push({
+      label: slot.via_location.label,
+      addr: [slot.via_location.street, slot.via_location.city].filter(Boolean).join(', ') || null,
+    });
+  }
+  if (slot.destination_location) {
+    stops.push({
+      label: slot.destination_location.label,
+      addr: [slot.destination_location.street, slot.destination_location.city].filter(Boolean).join(', ') || null,
+    });
+  }
+  const routeLabels = stops.map((s) => s.label).join('  →  ');
+  const firstAddr = stops[0]?.addr ?? null;
+  const lastAddr = stops[stops.length - 1]?.addr ?? null;
+
   return (
     <Banner tone={tone}>
-      <Link href="/my-pickups" className="flex items-center gap-3 sm:gap-4 w-full group">
-        {/* Photo cluster — small avatars, side-by-side for combined trips */}
-        <div className="flex -space-x-1.5 shrink-0">
+      <Link href="/my-pickups" className="flex items-stretch gap-4 sm:gap-5 w-full group">
+        {/* Photo cluster — slightly bigger now, still side-by-side for combined */}
+        <div className="flex -space-x-2 shrink-0 self-center">
           {allKids.slice(0, 3).map((k, i) => (
             <span
               key={k.id}
-              className="h-9 w-9 sm:h-10 sm:w-10 rounded-full overflow-hidden ring-2 ring-cream-50"
+              className="h-12 w-12 sm:h-14 sm:w-14 rounded-full overflow-hidden ring-2 ring-cream-50/80"
               style={{ background: k.color, zIndex: 10 - i }}
             >
               {k.photo_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={k.photo_url} alt={k.name} className="w-full h-full object-cover" style={{ objectPosition: '50% 28%' }} />
               ) : (
-                <span className="grid place-items-center w-full h-full text-cream-50 font-bold text-sm">
+                <span className="grid place-items-center w-full h-full text-cream-50 font-bold">
                   {k.name.slice(0, 1)}
                 </span>
               )}
@@ -108,28 +140,41 @@ export default async function NextPickupBanner({
           ))}
         </div>
 
-        {/* Text */}
-        <div className="flex-1 min-w-0 flex items-baseline gap-2 flex-wrap">
-          <span className="text-[10px] font-bold uppercase tracking-[0.12em] opacity-70 shrink-0">
-            {label}
-          </span>
-          <span className="font-display text-base sm:text-lg leading-none truncate">
-            {kidNames} <span className="opacity-60">·</span> {slot.title}
-          </span>
-          <span className="font-display tabular-nums text-base sm:text-lg leading-none ml-auto shrink-0">
-            {dateLabel} <span className="opacity-60">·</span> {time}
-          </span>
-          {soon && (
-            <span
-              className={
-                'shrink-0 text-[10px] uppercase tracking-[0.1em] font-bold px-2 py-0.5 rounded-full ' +
-                (soon.urgent
-                  ? 'bg-cream-50 text-coral-600'
-                  : 'bg-cream-50/25 text-cream-50')
-              }
-            >
-              {soon.label}
+        {/* Two-line text block: top = label + kids/title + date/time + urgency,
+            bottom = full route + first/last address. */}
+        <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5 py-0.5">
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span className="text-[10px] font-bold uppercase tracking-[0.14em] opacity-70 shrink-0">
+              {label}
             </span>
+            <span className="font-display text-base sm:text-lg leading-tight truncate">
+              {kidNames} <span className="opacity-50">·</span> {slot.title}
+            </span>
+            <span className="font-display tabular-nums text-base sm:text-lg leading-tight ml-auto shrink-0">
+              {dateLabel} <span className="opacity-50">·</span> {time}
+            </span>
+            {soon && (
+              <span
+                className={
+                  'shrink-0 text-[10px] uppercase tracking-[0.1em] font-bold px-2 py-0.5 rounded-full ' +
+                  (soon.urgent
+                    ? 'bg-cream-50 text-coral-600'
+                    : 'bg-cream-50/25 text-cream-50')
+                }
+              >
+                {soon.label}
+              </span>
+            )}
+          </div>
+          {routeLabels && (
+            <div className="flex items-baseline gap-2 flex-wrap text-[12.5px] sm:text-[13px] opacity-85">
+              <span className="font-medium tracking-tight">{routeLabels}</span>
+              {firstAddr && (
+                <span className="opacity-60 tabular-nums truncate">
+                  {firstAddr}{lastAddr && lastAddr !== firstAddr ? `  →  ${lastAddr}` : ''}
+                </span>
+              )}
+            </div>
           )}
         </div>
       </Link>
@@ -156,7 +201,7 @@ function Banner({
   }[tone];
   return (
     <div className={cls}>
-      <div className="mx-auto max-w-7xl px-3 sm:px-5 py-2.5 flex items-center text-sm">
+      <div className="mx-auto max-w-7xl px-3 sm:px-5 py-3.5 sm:py-4 flex items-center text-sm">
         {children}
       </div>
     </div>

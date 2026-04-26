@@ -7,6 +7,7 @@ import { mapsHref } from '@/lib/maps';
 import { prettyTime } from '@/lib/week';
 import { tellable } from '@/lib/phones';
 import ChildAvatar from './ChildAvatar';
+import HelperAvatar from './HelperAvatar';
 import { updateSlotNotesAction } from '@/app/_actions/admin';
 
 /**
@@ -131,10 +132,8 @@ export default function SlotDetailModal({
           {ownership !== 'mine' && (
             <div className="pt-2 border-t border-black/[0.06]">
               {ownership === 'taken' ? (
-                <div className="text-sm flex items-center gap-2">
-                  <span className="h-7 w-7 rounded-full bg-sage-500/15 text-sage-700 grid place-items-center text-xs font-bold">
-                    {(claimedBy?.full_name ?? '?').slice(0, 1)}
-                  </span>
+                <div className="text-sm flex items-center gap-2.5">
+                  <HelperAvatar name={claimedBy?.full_name ?? '?'} photoUrl={claimedBy?.photo_url} size={36} ring />
                   <span><b>{claimedBy?.full_name}</b> is on this one.</span>
                 </div>
               ) : (

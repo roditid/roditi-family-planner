@@ -16,6 +16,8 @@ export interface Profile {
   role: UserRole;
   helper_kind: HelperKind | null;
   color: string | null;
+  /** Path to the helper's portrait, e.g. `/helpers/vovo.jpg`. */
+  photo_url: string | null;
   email_enabled: boolean;
   sms_enabled: boolean;
 }

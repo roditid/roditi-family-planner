@@ -1,11 +1,12 @@
 'use client';
-import { useOptimistic, useTransition, useState } from 'react';
+import { useOptimistic, useTransition, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { SlotView } from '@/lib/types';
 import { mapsHref } from '@/lib/maps';
 import { prettyTime } from '@/lib/week';
 import { tellable } from '@/lib/phones';
 import ChildAvatar from './ChildAvatar';
+import HelperAvatar from './HelperAvatar';
 import SlotDetailModal from './SlotDetailModal';
 import { relativeTimeUntil } from '@/lib/relative-time';
 
@@ -41,6 +42,24 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
   const [err, setErr] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [optimistic, setOptimistic] = useOptimistic(initialState, (_prev, next: ClaimState) => next);
+
+  // Mutual exclusion across the whole page: only ONE slot detail modal can
+  // be open at a time. When this chip opens, broadcast its id; every other
+  // chip listens and closes itself if it sees a different id. Without this
+  // a fast double-tap would leave two modals stacked and visually broken.
+  const slotId = slot.id;
+  useEffect(() => {
+    if (!open) return;
+    window.dispatchEvent(new CustomEvent('pp:modal-open', { detail: slotId }));
+  }, [open, slotId]);
+  useEffect(() => {
+    function onOpen(e: Event) {
+      const id = (e as CustomEvent).detail;
+      if (id !== slotId) setOpen(false);
+    }
+    window.addEventListener('pp:modal-open', onOpen);
+    return () => window.removeEventListener('pp:modal-open', onOpen);
+  }, [slotId]);
 
   const ownership = optimistic;
   const claimedBy = ownership === 'mine' ? null : slot.assignment?.profile;
@@ -198,8 +217,9 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
                   You're on it
                 </span>
               ) : ownership === 'taken' ? (
-                <span className="inline-flex items-center gap-1 px-1.5 py-1 rounded-md bg-sage-500/12 text-sage-700 text-[10px] font-bold uppercase tracking-[0.1em]">
-                  {firstNameOf(claimedBy?.full_name)}'s on it
+                <span className="inline-flex items-center gap-1.5 pl-0.5 pr-2 py-0.5 rounded-full bg-sage-500/12 text-sage-700 text-[10px] font-bold uppercase tracking-[0.08em]">
+                  <HelperAvatar name={claimedBy?.full_name ?? '?'} photoUrl={claimedBy?.photo_url} size={20} ring />
+                  {firstNameOf(claimedBy?.full_name)}
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 px-1.5 py-1 rounded-md bg-coral-400/15 text-coral-600 text-[10px] font-bold uppercase tracking-[0.1em]">
@@ -341,28 +361,26 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
           {/* Status + action — when claimed (by anyone), the "X's on it" pill
               IS the action area. Unclaiming happens through the modal so the
               chip doesn't carry a destructive button inline. */}
-          <div className="pt-2 flex items-center justify-end gap-3 flex-wrap">
+          <div className="pt-3 flex items-center justify-between gap-3 flex-wrap">
             {ownership === 'mine' ? (
-              <span className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-cream-50/15 text-cream-50 text-sm font-semibold">
-                <span className="h-5 w-5 rounded-full bg-cream-50 text-sage-700 grid place-items-center text-[11px] font-bold">✓</span>
+              <span className="inline-flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-cream-50/20 text-cream-50 text-base font-semibold">
+                <span className="h-6 w-6 rounded-full bg-cream-50 text-sage-700 grid place-items-center text-sm font-bold">✓</span>
                 You're on it
               </span>
             ) : ownership === 'taken' ? (
-              <span className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-sage-500/12 text-sage-700 text-sm font-semibold">
-                <span className="h-5 w-5 rounded-full bg-sage-500/25 grid place-items-center text-[11px] font-bold">
-                  {(claimedBy?.full_name ?? '?').slice(0, 1)}
-                </span>
+              <span className="inline-flex items-center gap-2.5 pl-1 pr-4 py-1 rounded-full bg-sage-500/15 text-sage-700 text-base font-semibold">
+                <HelperAvatar name={claimedBy?.full_name ?? '?'} photoUrl={claimedBy?.photo_url} size={32} ring />
                 {firstNameOf(claimedBy?.full_name)}'s on it
               </span>
             ) : (
               <>
-                <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-coral-600 mr-auto">Needs a helper</span>
+                <span className="text-xs font-bold uppercase tracking-[0.1em] text-coral-600 shrink-0">Needs a helper</span>
                 <button
-                  onClick={doClaim}
+                  onClick={(e) => { e.stopPropagation(); doClaim(); }}
                   disabled={pending}
-                  className="rounded-xl text-sm font-semibold tracking-wide transition-all duration-150 active:scale-95 bg-sage-500 hover:bg-sage-600 text-cream-50 px-4 py-2.5 shadow-sm"
+                  className="ml-auto rounded-2xl text-base font-bold tracking-wide transition-all duration-150 active:scale-95 bg-sage-500 hover:bg-sage-600 text-cream-50 px-6 py-3.5 shadow-card hover:shadow-cardHover focus:outline-none focus:ring-4 focus:ring-sage-500/30"
                 >
-                  {pending ? '…' : 'Claim'}
+                  {pending ? 'Claiming…' : 'Claim this pickup'}
                 </button>
               </>
             )}

@@ -50,7 +50,15 @@ export default async function Landing() {
       <div className="mx-auto max-w-md px-5 sm:px-6 pt-10 sm:pt-14 pb-16">
         {/* Brand */}
         <div className="flex items-center gap-3 mb-8">
-          <div className="h-12 w-12 rounded-2xl bg-sage-500 grid place-items-center text-cream-50 font-display text-2xl shadow-sm">R</div>
+          <svg viewBox="0 0 100 100" width="48" height="48" aria-hidden className="shrink-0">
+            <path
+              d="M50 90 C 4 62, 4 20, 28 20 C 40 20, 48 28, 50 36 C 52 28, 60 20, 72 20 C 96 20, 96 62, 50 90 Z"
+              fill="#5C7A5F"
+            />
+            <text x="50" y="68" textAnchor="middle"
+              style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontStyle: 'italic' }}
+              fontSize="46" fontWeight="500" fill="#FBF6EC">R</text>
+          </svg>
           <div className="leading-tight">
             <div className="font-display text-xl leading-none tracking-tight">Roditi</div>
             <div className="text-[10px] uppercase tracking-[0.2em] text-ink-700/55 font-semibold mt-1">Family Planner</div>

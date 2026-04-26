@@ -6,6 +6,7 @@ import { demoMode } from '@/lib/demo-session';
 import { allUsers } from '@/lib/demo-store';
 import CopyLink from '@/components/CopyLink';
 import WhatsAppButton from '@/components/WhatsAppButton';
+import HelperAvatar from '@/components/HelperAvatar';
 import { updateHelperAction, sendOneInviteAction, regenerateTokenAction } from '@/app/_actions/members';
 
 export const dynamic = 'force-dynamic';
@@ -15,6 +16,7 @@ type Row = {
   full_name: string;
   email: string | null;
   phone_number: string | null;
+  photo_url: string | null;
   helper_kind: string | null;
   magic_token: string | null;
   magic_slug: string | null;
@@ -31,6 +33,7 @@ export default async function HelpersAdmin() {
   if (demoMode()) {
     members = allUsers().map((u: any) => ({
       id: u.id, full_name: u.full_name, email: u.email, phone_number: u.phone_number,
+      photo_url: u.photo_url ?? null,
       helper_kind: u.helper_kind, magic_token: u.magic_token, magic_slug: u.magic_slug ?? null,
       last_invite_sent_at: null, email_enabled: u.email_enabled, role: u.role,
     }));
@@ -38,7 +41,7 @@ export default async function HelpersAdmin() {
     const sb = supabaseServer();
     const { data } = await sb
       .from('household_members')
-      .select('helper_kind, role, profiles:user_id(id, full_name, email, phone_number, magic_token, magic_slug, last_invite_sent_at, email_enabled)')
+      .select('helper_kind, role, profiles:user_id(id, full_name, email, phone_number, photo_url, magic_token, magic_slug, last_invite_sent_at, email_enabled)')
       .eq('household_id', ctx.household!.id);
     members = (data ?? []).map((m: any) => ({ ...m.profiles, helper_kind: m.helper_kind, role: m.role }));
   }
@@ -92,9 +95,7 @@ export default async function HelpersAdmin() {
 function AdminRow({ m }: { m: Row }) {
   return (
     <div className="p-4 flex items-center gap-4">
-      <div className="h-10 w-10 rounded-full bg-sage-500/15 text-sage-700 grid place-items-center font-medium">
-        {(m.full_name || 'U').slice(0, 1)}
-      </div>
+      <HelperAvatar name={m.full_name} photoUrl={m.photo_url} size={44} ring />
       <div className="flex-1 min-w-0">
         <div className="font-medium">{m.full_name}</div>
         <div className="text-sm text-ink-700/60 truncate">{m.email}</div>
@@ -115,9 +116,7 @@ function HelperCard({ h, baseUrl }: { h: Row; baseUrl: string }) {
     <div className="card p-5 space-y-4">
       {/* Header */}
       <div className="flex items-start gap-4">
-        <div className="h-11 w-11 rounded-full bg-sage-500/15 text-sage-700 grid place-items-center font-medium text-lg shrink-0">
-          {(h.full_name || 'U').slice(0, 1)}
-        </div>
+        <HelperAvatar name={h.full_name} photoUrl={h.photo_url} size={56} ring />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium text-lg">{h.full_name}</span>

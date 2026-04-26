@@ -1,0 +1,16 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Roditi Family Planner">
+  <!-- Heart silhouette in sage. Path is hand-tuned so the lobes feel
+       slightly soft/romantic rather than mathematically symmetrical. -->
+  <path d="M50 88 C 6 62, 6 22, 28 22 C 40 22, 48 30, 50 36 C 52 30, 60 22, 72 22 C 94 22, 94 62, 50 88 Z"
+        fill="#5C7A5F"/>
+  <!-- Serif R nestled inside, sized to leave room for the heart curves on
+       either side. Family-stack falls back to common serifs anywhere. -->
+  <text x="50" y="65"
+        text-anchor="middle"
+        font-family="Cormorant Garamond, Georgia, 'Times New Roman', serif"
+        font-size="44"
+        font-weight="500"
+        font-style="italic"
+        fill="#FBF6EC"
+        letter-spacing="-1">R</text>
+</svg>
