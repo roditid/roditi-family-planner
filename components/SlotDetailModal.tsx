@@ -61,10 +61,13 @@ export default function SlotDetailModal({
       <div className="absolute inset-0 bg-ink-900/40 backdrop-blur-sm" />
 
       {/* Sheet — flex-column so the body scrolls but the action bar at the
-          bottom stays pinned. Without that pinned bar, tall content (esp.
-          on mobile) pushed the Claim button below the fold. */}
+          bottom stays pinned. On mobile we let the sheet take ~95% of the
+          viewport (95dvh handles iOS Safari URL-bar resizing) so there's
+          always enough room above for the page header to peek through.
+          The body uses min-h-0 — without it, flex-1 children expand to
+          their content and the overflow-y-auto becomes a no-op. */}
       <div
-        className="relative bg-cream-50 w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-cardHover border border-black/[0.04] max-h-[92vh] flex flex-col"
+        className="relative bg-cream-50 w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-cardHover border border-black/[0.04] max-h-[95dvh] sm:max-h-[90vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drag handle (mobile bottom-sheet feel) */}
@@ -72,7 +75,7 @@ export default function SlotDetailModal({
           <div className="h-1 w-10 rounded-full bg-black/15" />
         </div>
 
-        <div className="px-5 pt-2 pb-3 sm:px-6 sm:pt-4 sm:pb-3 space-y-4 overflow-y-auto flex-1">
+        <div className="px-5 pt-2 pb-3 sm:px-6 sm:pt-4 sm:pb-3 space-y-4 overflow-y-auto flex-1 min-h-0">
           {/* Confirmed banner — shown when this is now your pickup */}
           {ownership === 'mine' && (
             <div className="rounded-xl bg-sage-500/10 border border-sage-500/30 px-3.5 py-2.5 flex items-center gap-2.5">

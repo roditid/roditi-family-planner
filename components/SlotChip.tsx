@@ -290,11 +290,8 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
               />
             </div>
           ))}
-          {ownership === 'mine' && (
-            <span className="absolute -bottom-1.5 -right-1.5 h-7 w-7 rounded-full bg-cream-50 text-sage-700 grid place-items-center text-sm font-bold shadow-sm border border-sage-600/20 z-10">
-              ✓
-            </span>
-          )}
+          {/* The "You're on it" pill in the action row already carries a ✓,
+              so we don't duplicate it as a photo-corner overlay. */}
         </div>
 
         {/* CONTENT COLUMN */}
