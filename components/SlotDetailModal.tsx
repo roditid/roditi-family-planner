@@ -60,17 +60,19 @@ export default function SlotDetailModal({
       {/* Backdrop */}
       <div className="absolute inset-0 bg-ink-900/40 backdrop-blur-sm" />
 
-      {/* Sheet */}
+      {/* Sheet — flex-column so the body scrolls but the action bar at the
+          bottom stays pinned. Without that pinned bar, tall content (esp.
+          on mobile) pushed the Claim button below the fold. */}
       <div
-        className="relative bg-cream-50 w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-cardHover border border-black/[0.04] max-h-[90vh] overflow-y-auto"
+        className="relative bg-cream-50 w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-cardHover border border-black/[0.04] max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drag handle (mobile bottom-sheet feel) */}
-        <div className="sm:hidden flex justify-center pt-2.5 pb-1">
+        <div className="sm:hidden flex justify-center pt-2.5 pb-1 shrink-0">
           <div className="h-1 w-10 rounded-full bg-black/15" />
         </div>
 
-        <div className="px-5 pt-2 pb-5 sm:p-6 space-y-4">
+        <div className="px-5 pt-2 pb-3 sm:px-6 sm:pt-4 sm:pb-3 space-y-4 overflow-y-auto flex-1">
           {/* Confirmed banner — shown when this is now your pickup */}
           {ownership === 'mine' && (
             <div className="rounded-xl bg-sage-500/10 border border-sage-500/30 px-3.5 py-2.5 flex items-center gap-2.5">
@@ -81,6 +83,11 @@ export default function SlotDetailModal({
               </div>
             </div>
           )}
+
+          {/* Stroller note — surfaced at the TOP for Yali pickups so the
+              helper sees it before anything else. Tap-to-WhatsApp Dani.
+              For non-Yali pickups this renders nothing. */}
+          {yaliInTrip && <StrollerNote />}
 
           {/* Header */}
           <div className="flex items-start gap-3">
@@ -118,11 +125,9 @@ export default function SlotDetailModal({
           </div>
 
           {/* Stops: pickup → (additional siblings' Ganim) → via → drop-off.
-              Sibling stops carry a "by HH:MM" badge in the corner of the
-              card so the helper can pace the walk. The first stop's time
-              is already shown in the modal header (the big "Pick up 16:00"
-              line) so we don't repeat it here. */}
-          <DetailLoc label="Pick up from" loc={pickup} />
+              Every Gan stop carries a "by HH:MM" badge in the corner so
+              the helper can pace the walk. */}
+          <DetailLoc label="Pick up from" loc={pickup} byTime={slot.pickup_time ?? null} />
           {(slot.additional_children ?? []).map((kid: any) => kid.school_location && (
             <DetailLoc
               key={kid.id}
@@ -154,9 +159,6 @@ export default function SlotDetailModal({
             </div>
           )}
 
-          {/* Stroller note — only when Yali is in the trip */}
-          {yaliInTrip && <StrollerNote />}
-
           {/* Notes (slot-level) — visible to everyone, editable by admins */}
           <SlotNoteCard slot={slot} canEdit={!!isAdmin} />
 
@@ -173,33 +175,34 @@ export default function SlotDetailModal({
               )}
             </div>
           )}
-
-          {/* Action */}
-          {ownership !== 'taken' && (
-            <div className="space-y-2">
-              <button
-                onClick={onClaim}
-                disabled={pending}
-                className={
-                  'w-full rounded-2xl py-4 text-base font-semibold transition-all duration-150 active:scale-[0.98] ' +
-                  (ownership === 'mine'
-                    ? 'bg-black/[0.06] text-ink-900 hover:bg-black/[0.09]'
-                    : 'bg-sage-500 hover:bg-sage-600 text-cream-50 shadow-sm')
-                }
-              >
-                {pending ? '…' : ownership === 'mine' ? 'Unclaim this pickup' : 'Claim this pickup'}
-              </button>
-              {ownership === 'mine' && (
-                <ShareButtons
-                  slot={slot}
-                  currentUserPhone={currentUserPhone}
-                  currentUserName={currentUserName}
-                />
-              )}
-            </div>
-          )}
-          {err && <div className="text-sm text-coral-600 font-medium">{err}</div>}
         </div>
+
+        {/* Pinned action bar — never gets pushed below the fold no matter
+            how tall the body grows. */}
+        {ownership !== 'taken' && (
+          <div className="shrink-0 border-t border-black/[0.06] bg-cream-50 px-5 py-3 sm:px-6 sm:py-4 space-y-2">
+            <button
+              onClick={onClaim}
+              disabled={pending}
+              className={
+                'w-full rounded-2xl py-4 text-base font-semibold transition-all duration-150 active:scale-[0.98] ' +
+                (ownership === 'mine'
+                  ? 'bg-black/[0.06] text-ink-900 hover:bg-black/[0.09]'
+                  : 'bg-sage-500 hover:bg-sage-600 text-cream-50 shadow-sm')
+              }
+            >
+              {pending ? '…' : ownership === 'mine' ? 'Unclaim this pickup' : 'Claim this pickup'}
+            </button>
+            {ownership === 'mine' && (
+              <ShareButtons
+                slot={slot}
+                currentUserPhone={currentUserPhone}
+                currentUserName={currentUserName}
+              />
+            )}
+            {err && <div className="text-sm text-coral-600 font-medium">{err}</div>}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -435,12 +438,16 @@ function DetailLoc({ label, loc, byTime, endTime, activityTitle }: {
   }
   const href = mapsHref(loc);
   const addr = (formatAddress(loc) ?? '');
-  // Split notes on sentence breaks so each fact (hours, door code, ganenet,
-  // etc.) renders on its own line — easier to scan, easier to screenshot.
+  // Split notes on sentence breaks so each fact (door code, ganenet, etc.)
+  // renders on its own line — easier to scan, easier to screenshot. We
+  // drop opening-hours lines ("Open 07:30 – 16:00", "Dismisses 16:15")
+  // since the helper doesn't need to know when the Gan opens — they have
+  // a "by HH:MM" badge in the corner that already conveys the dismissal.
   const noteLines: string[] = (loc.notes ?? '')
     .split(/\n+|(?<=[\.\!])\s+/)
     .map((s: string) => s.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((line: string) => !/^(open|dismiss(?:es)?|closes?|hours?)\b/i.test(line));
   // Build a small time-badge string for the corner (e.g. "by 16:30" for a
   // sibling Gan, or "Soccer 17:00 – 18:30" for an activity stop).
   let badge: string | null = null;

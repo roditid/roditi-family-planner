@@ -19,6 +19,9 @@ interface Props {
   /** Surfaces the inline note editor on the detail modal when true. */
   isAdmin?: boolean;
   density?: 'compact' | 'roomy';
+  /** When true (e.g. on /my-pickups/mine), the chip shows a visible
+   *  "Unclaim this pickup" button next to the "You're on it" pill. */
+  showUnclaim?: boolean;
 }
 
 type ClaimState = 'mine' | 'taken' | 'open';
@@ -31,7 +34,7 @@ type ClaimState = 'mine' | 'taken' | 'open';
  * server call follows in the background; if it fails we revert and surface
  * a toast. No more 500ms spinner staring contests.
  */
-export default function SlotChip({ slot, currentUserId, currentUserPhone, currentUserName, isAdmin, density = 'roomy' }: Props) {
+export default function SlotChip({ slot, currentUserId, currentUserPhone, currentUserName, isAdmin, density = 'roomy', showUnclaim = false }: Props) {
   const initialState: ClaimState =
     slot.assignment?.assigned_to_user_id === currentUserId ? 'mine'
       : slot.status === 'claimed' ? 'taken'
@@ -140,10 +143,11 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
           onClick={() => setOpen(true)}
           className={`group relative w-full text-left rounded-xl border transition-all duration-150 active:scale-[0.985] overflow-hidden flex flex-col ${surface} ${pending ? 'opacity-90' : ''} ${isPast ? 'opacity-65 grayscale-[0.35]' : ''}`}
         >
-          {/* Photo block — square aspect (1:1) so each chip leaves more room
-              for the route + status text below. Combined sibling trips show
-              kids side-by-side at equal widths. */}
-          <div className="relative w-full flex gap-0.5" style={{ aspectRatio: '1 / 1' }}>
+          {/* Photo strip — short banner (fixed 80px) so the chip is mostly
+              text. Faces stay recognizable via object-cover + face-biased
+              object-position. Combined sibling trips show kids side-by-side
+              at equal widths. */}
+          <div className="relative w-full flex gap-0.5" style={{ height: 80 }}>
             {allKids.map((kid) => (
               <div key={kid.id} className="flex-1 relative min-w-0">
                 <ChildAvatar child={kid} shape="rect" rounded="rounded-none" />
@@ -422,10 +426,22 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
               chip doesn't carry a destructive button inline. */}
           <div className="pt-3 flex items-center justify-between gap-3 flex-wrap">
             {ownership === 'mine' ? (
-              <span className="inline-flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-cream-50/20 text-cream-50 text-base font-semibold">
-                <span className="h-6 w-6 rounded-full bg-cream-50 text-sage-700 grid place-items-center text-sm font-bold">✓</span>
-                You're on it
-              </span>
+              <>
+                <span className="inline-flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-cream-50/20 text-cream-50 text-base font-semibold">
+                  <span className="h-6 w-6 rounded-full bg-cream-50 text-sage-700 grid place-items-center text-sm font-bold">✓</span>
+                  You're on it
+                </span>
+                {showUnclaim && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); doClaim(); }}
+                    disabled={pending}
+                    className="ml-auto rounded-xl text-sm font-semibold tracking-wide transition-all duration-150 active:scale-95 bg-cream-50/15 hover:bg-cream-50/25 text-cream-50 px-4 py-2.5 focus:outline-none focus:ring-4 focus:ring-cream-50/20"
+                    aria-label="Unclaim this pickup"
+                  >
+                    {pending ? '…' : 'Unclaim'}
+                  </button>
+                )}
+              </>
             ) : ownership === 'taken' ? (
               <span className="inline-flex items-center gap-2.5 pl-1 pr-4 py-1 rounded-full bg-sage-500/15 text-sage-700 text-base font-semibold">
                 <HelperAvatar name={claimedBy?.full_name ?? '?'} photoUrl={claimedBy?.photo_url} size={32} ring />

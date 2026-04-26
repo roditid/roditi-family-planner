@@ -30,14 +30,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </div>
           </Link>
           <nav className="flex items-center gap-0.5 text-sm">
-            {isAdmin && (
-              <>
-                <NavLink href="/admin">Dashboard</NavLink>
-                <NavLink href="/my-pickups">My pickups</NavLink>
-              </>
-            )}
-            {/* Helpers only ever land on /my-pickups, so the nav button is
-                redundant for them. Header keeps just the brand on their side. */}
+            {isAdmin && <NavLink href="/admin">Dashboard</NavLink>}
+            <NavLink href="/my-pickups/mine">My pickups</NavLink>
           </nav>
         </div>
       </header>

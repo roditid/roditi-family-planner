@@ -147,6 +147,13 @@ function ColumnsLayout({
 }: { days: Date[]; byDay: Map<string, SlotView[]>; currentUserId: string; currentUserPhone?: string | null; currentUserName?: string | null; isAdmin?: boolean; cols: 7 }) {
   // Week: keeps 7 cols viable but each is a real card with route + status.
   const minColWidth = 150;
+  // Past = pickup time more than 30 min ago in IL local time. Used to
+  // collapse a column whose every chip has already happened.
+  const nowMs = Date.now();
+  const isPastSlot = (s: SlotView) => {
+    const slotUtc = fromZonedTime(`${s.date}T${s.pickup_time}`, 'Asia/Jerusalem');
+    return slotUtc.getTime() < nowMs - 30 * 60 * 1000;
+  };
   return (
     <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 snap-x snap-mandatory pb-2">
       <div
@@ -159,12 +166,17 @@ function ColumnsLayout({
         {days.map((d) => {
           const k = isoDay(d);
           const todays = (byDay.get(k) ?? []).sort((a, b) => a.pickup_time.localeCompare(b.pickup_time));
+          // If every chip in this day is past, replace the whole stack with
+          // a single "All done" tile (mirrors the day-view empty state).
+          const allPast = todays.length > 0 && todays.every(isPastSlot);
           return (
             <div key={k} className="snap-start min-w-0">
               <DayHeader d={d} count={todays.length} />
               <div className="mt-2 space-y-1.5 min-h-[80px]">
                 {todays.length === 0 ? (
                   <EmptyDay />
+                ) : allPast ? (
+                  <DayDone count={todays.length} />
                 ) : (
                   todays.map((s) => (
                     <SlotChip key={s.id} slot={s} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} isAdmin={isAdmin} density="compact" />
@@ -194,5 +206,17 @@ function DayHeader({ d, count }: { d: Date; count: number }) {
 function EmptyDay() {
   return (
     <div className="rounded-lg border border-dashed border-black/10 px-2 py-3 text-center text-[11px] text-ink-700/40">—</div>
+  );
+}
+
+/** Compact "all done" tile for week-view columns whose pickups have
+ *  all already happened. Mirrors the day-view empty state. */
+function DayDone({ count }: { count: number }) {
+  return (
+    <div className="rounded-xl bg-cream-200/40 px-2 py-4 text-center">
+      <div className="text-2xl mb-1">✓</div>
+      <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-ink-700/65">All done</div>
+      <div className="text-[10px] text-ink-700/45 mt-0.5 tabular-nums">{count} pickup{count === 1 ? '' : 's'}</div>
+    </div>
   );
 }
