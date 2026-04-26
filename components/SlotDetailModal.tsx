@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { SlotView } from '@/lib/types';
-import { mapsHref } from '@/lib/maps';
+import { mapsHref, formatAddress } from '@/lib/maps';
 import { prettyTime } from '@/lib/week';
 import { tellable } from '@/lib/phones';
 import ChildAvatar from './ChildAvatar';
@@ -434,7 +434,7 @@ function DetailLoc({ label, loc, byTime, endTime, activityTitle }: {
     );
   }
   const href = mapsHref(loc);
-  const addr = [loc.street, loc.city].filter(Boolean).join(', ');
+  const addr = (formatAddress(loc) ?? '');
   // Split notes on sentence breaks so each fact (hours, door code, ganenet,
   // etc.) renders on its own line — easier to scan, easier to screenshot.
   const noteLines: string[] = (loc.notes ?? '')

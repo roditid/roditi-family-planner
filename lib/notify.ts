@@ -5,6 +5,7 @@
  * which provider is in use.
  */
 import { Resend } from 'resend';
+import { formatAddress } from '@/lib/maps';
 import type { SlotView } from './types';
 
 export interface NotifyMessage {
@@ -48,9 +49,9 @@ function escapeHtml(s: string) {
  */
 export function renderReminder(slot: SlotView) {
   const pickup = slot.pickup_location?.label ?? slot.pickup_location_text ?? 'location TBD';
-  const pickupAddr = [slot.pickup_location?.street, slot.pickup_location?.city].filter(Boolean).join(', ');
+  const pickupAddr = formatAddress(slot.pickup_location) ?? '';
   const dest = slot.destination_location?.label ?? slot.destination_text;
-  const destAddr = [slot.destination_location?.street, slot.destination_location?.city].filter(Boolean).join(', ');
+  const destAddr = formatAddress(slot.destination_location) ?? '';
 
   const lines: string[] = [];
   lines.push(`Today's pickup: ${slot.child.name} at ${slot.pickup_time.slice(0, 5)}`);
@@ -88,7 +89,7 @@ export function renderClaimConfirmation(slot: SlotView, helperName: string | nul
   // stays clean and screenshot-friendly.
   const fmtStop = (label: string, loc: any) => {
     if (!loc) return null;
-    const addr = [loc.street, loc.city].filter(Boolean).join(', ');
+    const addr = (formatAddress(loc) ?? '');
     const parts: string[] = [`${label}`, loc.label];
     if (addr) parts.push(addr);
     return parts.join('\n');

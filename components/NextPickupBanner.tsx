@@ -13,6 +13,7 @@
  * doesn't show as an empty bar in seed/empty-state environments).
  */
 import Link from 'next/link';
+import { formatAddress } from '@/lib/maps';
 import { addDays, format } from 'date-fns';
 import { fetchSlots } from '@/lib/slots';
 import { supabaseServer } from '@/lib/supabase/server';
@@ -90,28 +91,19 @@ export default async function NextPickupBanner({
   // to actually be standing.
   const stops: { label: string; addr: string | null }[] = [];
   if (slot.pickup_location) {
-    stops.push({
-      label: slot.pickup_location.label,
-      addr: [slot.pickup_location.street, slot.pickup_location.city].filter(Boolean).join(', ') || null,
-    });
+    stops.push({ label: slot.pickup_location.label, addr: formatAddress(slot.pickup_location) });
   } else if (slot.pickup_location_text) {
     stops.push({ label: slot.pickup_location_text, addr: null });
   }
   for (const k of slot.additional_children ?? []) {
     const sl = (k as any).school_location;
-    if (sl) stops.push({ label: sl.label, addr: [sl.street, sl.city].filter(Boolean).join(', ') || null });
+    if (sl) stops.push({ label: sl.label, addr: formatAddress(sl) });
   }
   if (slot.via_location) {
-    stops.push({
-      label: slot.via_location.label,
-      addr: [slot.via_location.street, slot.via_location.city].filter(Boolean).join(', ') || null,
-    });
+    stops.push({ label: slot.via_location.label, addr: formatAddress(slot.via_location) });
   }
   if (slot.destination_location) {
-    stops.push({
-      label: slot.destination_location.label,
-      addr: [slot.destination_location.street, slot.destination_location.city].filter(Boolean).join(', ') || null,
-    });
+    stops.push({ label: slot.destination_location.label, addr: formatAddress(slot.destination_location) });
   }
   const routeLabels = stops.map((s) => s.label).join('  →  ');
   const firstAddr = stops[0]?.addr ?? null;

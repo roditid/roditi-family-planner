@@ -1,6 +1,6 @@
 'use client';
 import type { SlotView } from '@/lib/types';
-import { mapsHref } from '@/lib/maps';
+import { mapsHref, formatAddress } from '@/lib/maps';
 import { prettyTime } from '@/lib/week';
 import ClaimButton from './ClaimButton';
 
@@ -107,7 +107,7 @@ function LocRow({ label, loc, warn }: { label: string; loc: any; warn?: boolean 
     );
   }
   const href = mapsHref(loc);
-  const addr = [loc.street, loc.city].filter(Boolean).join(', ');
+  const addr = (formatAddress(loc) ?? '');
   return (
     <div className="flex gap-2 items-start">
       <span className="mt-0.5">📍</span>

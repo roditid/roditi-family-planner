@@ -2,7 +2,7 @@
 import { useOptimistic, useTransition, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { SlotView } from '@/lib/types';
-import { mapsHref } from '@/lib/maps';
+import { mapsHref, formatAddress } from '@/lib/maps';
 import { prettyTime } from '@/lib/week';
 import { tellable } from '@/lib/phones';
 import ChildAvatar from './ChildAvatar';
@@ -454,7 +454,7 @@ function LocLine({ label, loc, mine, byTime, endTime, activityLabel }: {
   activityLabel?: string | null;
 }) {
   const href = mapsHref(loc);
-  const addr = [loc.street, loc.city].filter(Boolean).join(', ');
+  const addr = (formatAddress(loc) ?? '');
   // Build the time tail: either a sibling Gan max-arrival ("by 16:30") or
   // an activity window ("Judo 16:30 – 17:15") appended to the via stop.
   let timeTail: string | null = null;
