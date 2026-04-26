@@ -87,6 +87,14 @@ Liam waits 4 hours.
 - **Notification channel** — currently email. Twilio SMS or Twilio WhatsApp
   on the table; Paula deciding. In the meantime, /admin/unassigned has a
   tap-and-send WhatsApp button for Liezel's summary.
+- **Stroller WhatsApp reminder to picker** — when a helper claims a Yali
+  pickup, also send/queue a WhatsApp message to the helper themselves
+  reminding them to ask Dani about the stroller. Today the in-app modal
+  already surfaces the stroller note + a tap-to-WhatsApp-Dani link, but
+  there's no automated outbound message to the helper. Same blocker as
+  the notification channel decision — once Twilio (or another channel)
+  is wired up we can fan-out a stroller reminder automatically on every
+  Yali claim.
 - **Photo of Yali** — replaced with the rocking-horse portrait. Per-kid
   object-position tuned in CSS.
 

@@ -52,7 +52,7 @@ export default function SlotDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center pp-fade"
+      className="fixed inset-0 z-50 flex sm:items-center justify-center pp-fade"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -60,22 +60,27 @@ export default function SlotDetailModal({
       {/* Backdrop */}
       <div className="absolute inset-0 bg-ink-900/40 backdrop-blur-sm" />
 
-      {/* Sheet — flex-column so the body scrolls but the action bar at the
-          bottom stays pinned. On mobile we let the sheet take ~95% of the
-          viewport (95dvh handles iOS Safari URL-bar resizing) so there's
-          always enough room above for the page header to peek through.
-          The body uses min-h-0 — without it, flex-1 children expand to
-          their content and the overflow-y-auto becomes a no-op. */}
+      {/* Sheet:
+          • Mobile: full-screen takeover (h-[100dvh]). Avoids the bottom-
+            sheet height ambiguity that was breaking the body scroll —
+            the dynamic viewport unit 100dvh accounts for iOS Safari's
+            URL bar.
+          • Desktop: centered card capped at 90vh.
+          Layout uses CSS grid (auto / 1fr / auto) so the middle row is
+          always exactly the remaining height — no flex min-height
+          gotchas. The middle row has overflow-y-auto and reliably
+          scrolls when content is taller than the row. */}
       <div
-        className="relative bg-cream-50 w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-cardHover border border-black/[0.04] max-h-[95dvh] sm:max-h-[90vh] flex flex-col overflow-hidden"
+        className="relative bg-cream-50 w-full h-[100dvh] sm:h-auto sm:max-w-md sm:max-h-[90vh] sm:rounded-3xl shadow-cardHover sm:border sm:border-black/[0.04] grid overflow-hidden"
+        style={{ gridTemplateRows: 'auto 1fr auto' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Drag handle (mobile bottom-sheet feel) */}
-        <div className="sm:hidden flex justify-center pt-2.5 pb-1 shrink-0">
+        {/* Top bar with drag-handle (mobile) — fixed top-row of the grid */}
+        <div className="sm:hidden flex justify-center pt-2.5 pb-1">
           <div className="h-1 w-10 rounded-full bg-black/15" />
         </div>
 
-        <div className="px-5 pt-2 pb-3 sm:px-6 sm:pt-4 sm:pb-3 space-y-4 overflow-y-auto flex-1 min-h-0">
+        <div className="px-5 pt-2 pb-3 sm:px-6 sm:pt-4 sm:pb-3 space-y-4 overflow-y-auto">
           {/* Confirmed banner — shown when this is now your pickup */}
           {ownership === 'mine' && (
             <div className="rounded-xl bg-sage-500/10 border border-sage-500/30 px-3.5 py-2.5 flex items-center gap-2.5">
@@ -454,7 +459,10 @@ function DetailLoc({ label, loc, byTime, endTime, activityTitle }: {
     .map((s: string) => s.trim())
     .filter(Boolean)
     .filter((line: string) => !/^(open|dismiss(?:es)?|closes?|hours?)\b/i.test(line))
-    .map((line: string) => line.replace(/^(ganenet|trainer|coach|teacher|guide|instructor|nanny|contact)\s*:\s*/i, ''));
+    .map((line: string) => line.replace(/^(ganenet|trainer|coach|teacher|guide|instructor|nanny|contact)\s*:\s*/i, ''))
+    // Strip trailing punctuation introduced by the sentence-split — door
+    // code lines like "Door code 0852." should display without the dot.
+    .map((line: string) => line.replace(/[\.\s]+$/, ''));
   // Build a small time-badge string for the corner (e.g. "by 16:30" for a
   // sibling Gan, or "Soccer 17:00 – 18:30" for an activity stop).
   let badge: string | null = null;
