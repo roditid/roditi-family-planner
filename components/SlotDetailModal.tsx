@@ -101,16 +101,11 @@ export default function SlotDetailModal({
                 ))}
               </div>
               <div className="font-display text-2xl sm:text-3xl leading-tight tracking-tight">{slot.title}</div>
+              {/* Header time = pickup time only. Activity hours live as a
+                  badge on the "Then go to" stop card below, so the helper
+                  doesn't see two competing time lines at the top. */}
               <div className="text-sm text-ink-700/70 mt-0.5 tabular-nums">
                 <span className="font-semibold text-ink-900">Pick up {prettyTime(slot.pickup_time)}</span>
-                {slot.activity_start_time && slot.activity_start_time !== slot.pickup_time && (
-                  <span className="ml-2">
-                    · {slot.title} {prettyTime(slot.activity_start_time)}{slot.end_time && ` – ${prettyTime(slot.end_time)}`}
-                  </span>
-                )}
-                {(!slot.activity_start_time || slot.activity_start_time === slot.pickup_time) && slot.end_time && (
-                  <span className="ml-2">· ends {prettyTime(slot.end_time)}</span>
-                )}
               </div>
             </div>
             <button

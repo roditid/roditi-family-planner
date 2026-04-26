@@ -308,27 +308,9 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
               ★ Stay the whole time
             </div>
           )}
-          {(slot.activity_start_time || slot.end_time) && (() => {
-            // Show activity hours only when distinct from pickup_time. For
-            // Gan→Home defaults, pickup_time === activity_start_time and
-            // there's no real activity to advertise.
-            const aStart = slot.activity_start_time;
-            const aEnd = slot.end_time;
-            if (!aStart || aStart === slot.pickup_time) {
-              if (!aEnd) return null;
-              return (
-                <div className={`text-[12px] tabular-nums ${ownership === 'mine' ? 'opacity-75' : 'text-ink-700/55'}`}>
-                  ends {prettyTime(aEnd)}
-                </div>
-              );
-            }
-            return (
-              <div className={`text-[12px] tabular-nums leading-none ${ownership === 'mine' ? 'opacity-80' : 'text-ink-700/60'}`}>
-                <span className="uppercase tracking-[0.1em] font-bold mr-1.5 opacity-80">{slot.title}</span>
-                {prettyTime(aStart)}{aEnd && <> – {prettyTime(aEnd)}</>}
-              </div>
-            );
-          })()}
+          {/* Activity hours used to live up here as a second time-line, but
+              they read better as a tail annotation on the "via" stop (the
+              activity location). See the LocLine call below. */}
 
           {/* Kid name(s) (small caps) + activity */}
           <div className="space-y-0.5">
@@ -357,7 +339,13 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
               line (after the address) so the eye reads location-then-time. */}
           <div className={`text-sm space-y-1 pt-0.5 ${ownership === 'mine' ? 'opacity-95' : ''}`}>
             {(() => {
-              type Stop = { label: string; loc: any; byTime: string | null };
+              type Stop = {
+                label: string;
+                loc: any;
+                byTime: string | null;
+                endTime?: string | null;
+                activityLabel?: string | null;
+              };
               const stops: Stop[] = [];
               if (pickup) {
                 stops.push({ label: 'from', loc: pickup, byTime: null });
@@ -370,7 +358,19 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
                   byTime: (k as any).gan_dismissal_time ?? null,
                 });
               }
-              if (via) stops.push({ label: 'via', loc: via, byTime: null });
+              if (via) {
+                // Activity hours go on the via stop ("Drahi · Judo 16:30 – 17:15")
+                // when the calendar event has them.
+                const aStart = slot.activity_start_time;
+                const aEnd = slot.end_time;
+                stops.push({
+                  label: 'via',
+                  loc: via,
+                  byTime: aStart && aStart !== slot.pickup_time ? aStart : null,
+                  endTime: aEnd && aEnd !== slot.pickup_time ? aEnd : null,
+                  activityLabel: aStart && aStart !== slot.pickup_time ? slot.title : null,
+                });
+              }
               if (dest) stops.push({ label: 'to', loc: dest, byTime: null });
               if (!pickup) {
                 return (
@@ -381,7 +381,15 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
                 );
               }
               return stops.map((s, i) => (
-                <LocLine key={i} label={s.label} loc={s.loc} byTime={s.byTime} mine={ownership === 'mine'} />
+                <LocLine
+                  key={i}
+                  label={s.label}
+                  loc={s.loc}
+                  byTime={s.byTime}
+                  endTime={s.endTime}
+                  activityLabel={s.activityLabel}
+                  mine={ownership === 'mine'}
+                />
               ));
             })()}
           </div>
@@ -436,9 +444,25 @@ function firstNameOf(name: string | null | undefined): string {
   return name.split(/[\s(]/)[0] || name;
 }
 
-function LocLine({ label, loc, mine, byTime }: { label: string; loc: any; mine: boolean; byTime?: string | null }) {
+function LocLine({ label, loc, mine, byTime, endTime, activityLabel }: {
+  label: string;
+  loc: any;
+  mine: boolean;
+  byTime?: string | null;
+  endTime?: string | null;
+  /** When set, the time tail reads "Judo 16:30 – 17:15" instead of "by 16:30". */
+  activityLabel?: string | null;
+}) {
   const href = mapsHref(loc);
   const addr = [loc.street, loc.city].filter(Boolean).join(', ');
+  // Build the time tail: either a sibling Gan max-arrival ("by 16:30") or
+  // an activity window ("Judo 16:30 – 17:15") appended to the via stop.
+  let timeTail: string | null = null;
+  if (byTime) {
+    timeTail = activityLabel
+      ? `${activityLabel} ${prettyTime(byTime)}${endTime ? ` – ${prettyTime(endTime)}` : ''}`
+      : `by ${prettyTime(byTime)}`;
+  }
   return (
     <div className="leading-snug">
       <div className="flex items-baseline gap-1.5">
@@ -448,9 +472,9 @@ function LocLine({ label, loc, mine, byTime }: { label: string; loc: any; mine: 
         <span className="flex-1 min-w-0">
           <span className="font-medium">{loc.label}</span>
           {addr && <span className={`ml-1.5 ${mine ? 'opacity-75' : 'text-ink-700/60'}`}>· {addr}</span>}
-          {byTime && (
+          {timeTail && (
             <span className={`ml-1.5 tabular-nums font-bold ${mine ? 'opacity-95' : 'text-ink-900'}`}>
-              · by {prettyTime(byTime)}
+              · {timeTail}
             </span>
           )}
           {href && (
