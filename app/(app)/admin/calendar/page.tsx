@@ -84,7 +84,12 @@ export default async function CalendarSettings({ searchParams }: { searchParams:
             <form action="/api/calendar/sync" method="post">
               <button className="btn-soft">↻ Sync now</button>
             </form>
-            <a href="/api/calendar/connect" className="btn-ghost">Reconnect Paula's account</a>
+            <a href="/api/calendar/connect" className="btn-ghost">Reconnect Google account</a>
+            <form action="/api/calendar/reset" method="post" className="ml-auto">
+              <button className="btn-ghost text-coral-600 hover:bg-coral-400/10" title="Wipes ALL calendar-sourced events + slots, then re-syncs from the connected calendar. Use after switching the connected account.">
+                Reset & resync
+              </button>
+            </form>
           </div>
 
           {conn.last_sync_error && (

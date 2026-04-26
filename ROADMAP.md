@@ -92,6 +92,19 @@ Liam waits 4 hours.
 
 ## Recently shipped (most recent first)
 
+- Roditi-kids calendar conventions: special title patterns `[Kid] - No gan`,
+  `[Kid] - gan until HH:MM`, `Kids - No gan`, `A&L - No gan` (initials),
+  `[Kid] - Last day of gan`, `prep day for tomorrow`. Stored as
+  daily_overrides; defaults generator skips no-gan kids and uses early-
+  dismissal times. At-Gan special activities (Shavuot, Lag Baomer, parents
+  day) flagged as `requires_full_presence` and shown with a coral "Stay
+  the whole time" indicator on chip + modal.
+- Reset & resync admin button — wipes calendar-sourced events + slots and
+  re-syncs from the connected calendar. Use when switching accounts.
+- Daily evening cron extended: prep-day list emails Paula with a one-tap
+  WhatsApp button to forward to Liezel (no Twilio needed).
+- Adam's "Last day of gan" pre-warning emails Paula 7 days ahead so she
+  can fill in the school-activity hours.
 - Calendar prefix → auto-claim. When Paula prefixes a calendar event with
   `[Helper Name] …`, the next sync claims that slot for the named helper.
 - Activity start/end time on chip + modal (separate from the helper's earlier

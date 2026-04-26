@@ -158,11 +158,70 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
       maxResults: 250,
     });
     const events = res.data.items ?? [];
+    const childNames = (children ?? []).map((c) => c.name);
+
     for (const ev of events) {
-      if (!ev.start?.dateTime) continue; // skip all-day for pickup logic
       const title = ev.summary ?? '(untitled)';
       if (include.length && !include.some((k) => matches(title, k))) continue;
       if (exclude.some((k) => matches(title, k))) continue;
+
+      // All-day events have ev.start.date; timed events have ev.start.dateTime.
+      // Special markers (no-gan, prep-day, last-day) often live as all-day.
+      const isAllDay = !ev.start?.dateTime;
+      const startDate = isAllDay
+        ? new Date((ev.start?.date ?? '') + 'T00:00:00')
+        : new Date(ev.start!.dateTime!);
+
+      const special = detectSpecialEvent(title, childNames);
+      if (special) {
+        eventsSeen++;
+        // Persist the source event row so daily_overrides can reference it.
+        const { data: specialEventRow } = await sb.from('calendar_events').upsert({
+          household_id: householdId,
+          calendar_id: calId,
+          google_event_id: ev.id!,
+          title,
+          description: ev.description ?? null,
+          location_text: ev.location ?? null,
+          start_at: startDate.toISOString(),
+          end_at: ev.end?.dateTime ? new Date(ev.end.dateTime).toISOString() : null,
+          raw: ev as any,
+        }, { onConflict: 'calendar_id,google_event_id' }).select().single();
+
+        const date = formatInTimeZone(startDate, tz, 'yyyy-MM-dd');
+
+        if (special.kind === 'prep_day') {
+          // Single household-wide row; no child_id. The event description
+          // is the prep list — store as notes for the cron to pick up.
+          await sb.from('daily_overrides').upsert({
+            household_id: householdId,
+            child_id: null,
+            date,
+            kind: 'prep_day',
+            source_event_id: specialEventRow?.id ?? null,
+            notes: ev.description ?? null,
+          }, { onConflict: 'household_id,child_id,date,kind', ignoreDuplicates: false } as any);
+        } else if (special.kind === 'no_gan' || special.kind === 'last_day_school' || special.kind === 'early_dismissal') {
+          // One row per affected kid
+          const kids = special.childIds.length
+            ? (children ?? []).filter((c) => special.childIds.includes(c.name))
+            : (children ?? []);
+          for (const kid of kids) {
+            await sb.from('daily_overrides').upsert({
+              household_id: householdId,
+              child_id: kid.id,
+              date,
+              kind: special.kind === 'no_gan' ? 'no_gan' : special.kind,
+              dismissal_time: special.dismissalTime ?? null,
+              source_event_id: specialEventRow?.id ?? null,
+              notes: ev.description ?? null,
+            }, { onConflict: 'household_id,child_id,date,kind', ignoreDuplicates: false } as any);
+          }
+        }
+        continue; // special events don't create pickup_slots
+      }
+
+      if (!ev.start?.dateTime) continue; // regular pickup logic needs a timed event
 
       eventsSeen++;
       const start = new Date(ev.start.dateTime);
@@ -257,6 +316,9 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
         notes: match.activity?.notes ?? null,
         pack_notes: pack_notes || null,
         parent_notes: parent_notes || null,
+        // Special at-Gan activities (Shavuot w/ grandparents, Lag Baomer
+        // picnic, parents day, ceremony) — helper stays the whole time.
+        requires_full_presence: isFullPresenceTitle(title),
       }, { onConflict: 'source_event_id' });
       if (!error) slotsCreated++;
 
@@ -310,6 +372,101 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
 
 function matches(title: string, kw: string) {
   return title.toLowerCase().includes(kw.toLowerCase());
+}
+
+// ─── Special calendar-event patterns ────────────────────────────────────
+// These let Paula drive the schedule by writing recognizable titles in
+// roditikids@gmail.com instead of clicking through the admin UI.
+//
+//   "Liam - No gan"                 → no Gan→Home that day for Liam
+//   "Kids - No gan"                 → no Gan for any kid
+//   "A&L - No gan"                  → initials map to kids (A=Adam, L=Liam, Y=Yali)
+//   "Liam - gan until 12:30"        → early-dismissal override for that date
+//   "Adam - Last day of gan"        → school-activity reminder, Adam-only
+//   "prep day for tomorrow"         → backpack items go to Liezel via WhatsApp
+//   "Liam - Shavuot w/ Grandparents" + at the Gan → requires_full_presence
+
+interface SpecialEventMatch {
+  kind: 'no_gan' | 'early_dismissal' | 'last_day_school' | 'prep_day';
+  childIds: string[]; // empty = all kids
+  dismissalTime?: string; // 'HH:MM:SS' for early_dismissal
+}
+
+const KID_INITIAL_TO_NAME: Record<string, string> = {
+  a: 'Adam', l: 'Liam', y: 'Yali',
+};
+
+/**
+ * Map a kid-prefix string ("Liam" / "Kids" / "A&L" / "Y&A") to a list of
+ * child names. Returns empty array if the prefix doesn't resolve.
+ */
+function resolveKidPrefix(prefix: string, childNames: string[]): string[] {
+  const trimmed = prefix.trim().toLowerCase();
+  if (!trimmed) return [];
+  if (trimmed === 'kids' || trimmed === 'all') return childNames;
+  // Direct name match
+  const direct = childNames.find((n) => n.toLowerCase() === trimmed);
+  if (direct) return [direct];
+  // Initials joined with & (or comma / space)
+  if (/^[ayl](\s*[&,+]\s*[ayl])+$/i.test(trimmed)) {
+    const inits = trimmed.split(/[\s&,+]+/).filter(Boolean);
+    const names: string[] = [];
+    for (const init of inits) {
+      const name = KID_INITIAL_TO_NAME[init];
+      if (name && childNames.includes(name)) names.push(name);
+    }
+    return names;
+  }
+  return [];
+}
+
+/**
+ * Decide whether an event title is a "special" override / marker rather
+ * than a regular pickup. Returns the parsed payload or null if it's a
+ * normal event.
+ */
+function detectSpecialEvent(title: string, childNames: string[]): SpecialEventMatch | null {
+  const t = title.trim();
+
+  // "prep day for tomorrow" — case-insensitive, ignores punctuation
+  if (/prep\s*day\s*(for\s*)?tomorrow/i.test(t)) {
+    return { kind: 'prep_day', childIds: [] };
+  }
+
+  // "[KidPrefix] - No gan"  (case-insensitive, allows en/em dash)
+  const noGanMatch = t.match(/^([\w\s&+,]+?)\s*[-–—]\s*no\s*gan\s*$/i);
+  if (noGanMatch) {
+    const kids = resolveKidPrefix(noGanMatch[1], childNames);
+    return { kind: 'no_gan', childIds: kids };
+  }
+
+  // "[Kid] - gan until 12:30"
+  const untilMatch = t.match(/^([\w\s&+,]+?)\s*[-–—]\s*gan\s*until\s*(\d{1,2})[:.](\d{2})/i);
+  if (untilMatch) {
+    const kids = resolveKidPrefix(untilMatch[1], childNames);
+    const hh = String(parseInt(untilMatch[2], 10)).padStart(2, '0');
+    const mm = untilMatch[3];
+    return { kind: 'early_dismissal', childIds: kids, dismissalTime: `${hh}:${mm}:00` };
+  }
+
+  // "[Kid] - Last day of gan" — Adam-only school activity, others ignored
+  const lastDayMatch = t.match(/^([\w\s&+,]+?)\s*[-–—]\s*last\s*day\s*of\s*gan/i);
+  if (lastDayMatch) {
+    const kids = resolveKidPrefix(lastDayMatch[1], childNames);
+    return { kind: 'last_day_school', childIds: kids };
+  }
+
+  return null;
+}
+
+const FULL_PRESENCE_KEYWORDS = [
+  'shavuot', 'lag baomer', 'lag ba\'omer', 'picnic', 'parents day',
+  'yom hahorim', 'mesibat', 'celebration', 'ceremony', 'siyum',
+];
+
+function isFullPresenceTitle(title: string): boolean {
+  const t = title.toLowerCase();
+  return FULL_PRESENCE_KEYWORDS.some((kw) => t.includes(kw));
 }
 
 /**

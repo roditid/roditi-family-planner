@@ -64,6 +64,49 @@ export async function GET(req: NextRequest) {
       results.push({ household: h.id, slot: slot.id, to: profile.email, status: send.error ? 'failed' : 'sent' });
     }
 
+    // Adam's "Last day of gan" pre-warning. Adam moves to a school
+    // activity at the same address with different hours; Paula needs
+    // to define those hours a week ahead. We email her once when the
+    // override is exactly 7 days out.
+    {
+      const sevenDaysOut = format(new Date(localNow.getTime() + 7 * 86400_000), 'yyyy-MM-dd', { timeZone: tz });
+      const { data: lastDayRows } = await sb
+        .from('daily_overrides')
+        .select('id, date, child_id, children:child_id(name)')
+        .eq('household_id', h.id)
+        .eq('kind', 'last_day_school')
+        .eq('date', sevenDaysOut);
+      for (const row of lastDayRows ?? []) {
+        const kidName = (row as any).children?.name ?? '';
+        if (kidName.toLowerCase() !== 'adam') continue; // only Adam needs the heads-up
+        // Send to every admin
+        const { data: admins } = await sb
+          .from('household_members')
+          .select('profiles:user_id(*)')
+          .eq('household_id', h.id)
+          .eq('role', 'admin');
+        for (const a of admins ?? []) {
+          const p: any = (a as any).profiles;
+          if (!p?.email) continue;
+          await emailProvider.send({
+            to: p.email,
+            subject: `Adam — Last day of Gan in 1 week (${row.date})`,
+            body: [
+              `One week heads-up: Adam's last day of Gan is ${row.date}.`,
+              ``,
+              `That day he'll have a school activity at the same address with different hours.`,
+              `Please define the hours so the pickup planner can schedule it.`,
+              ``,
+              `When you have the hours, edit the calendar event to "Adam - gan until HH:MM"`,
+              `(or any other time pattern) and the planner will pick it up automatically.`,
+              ``,
+              `— Roditi Family Planner`,
+            ].join('\n'),
+          });
+        }
+      }
+    }
+
     // Parent fallback: if there are still unclaimed slots today and the setting is on, poke admins.
     if (s?.parent_fallback_alert) {
       const orphans = slots.filter((x) => x.status === 'unclaimed');

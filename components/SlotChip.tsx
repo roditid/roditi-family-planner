@@ -303,6 +303,11 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
               </span>
             )}
           </div>
+          {slot.requires_full_presence && (
+            <div className={`text-[11px] uppercase tracking-[0.1em] font-bold ${ownership === 'mine' ? 'text-cream-50/95' : 'text-coral-600'}`}>
+              ★ Stay the whole time
+            </div>
+          )}
           {(slot.activity_start_time || slot.end_time) && (() => {
             // Show activity hours only when distinct from pickup_time. For
             // Gan→Home defaults, pickup_time === activity_start_time and

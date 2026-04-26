@@ -186,6 +186,45 @@ export async function buildBackpackReminder(
 }
 
 /**
+ * Tomorrow's prep-day items, lifted from the "prep day for tomorrow"
+ * calendar event description. Returns null if no such event exists.
+ *
+ * Format: each non-empty line in the description becomes a "• item" bullet,
+ * so Paula can keep the calendar event description as a simple list.
+ */
+export async function buildPrepDayMessage(
+  sb: SupabaseClient,
+  householdId: string
+): Promise<{ subject: string; body: string } | null> {
+  const tomorrow = addDays(new Date(), 1);
+  const dateISO = format(tomorrow, 'yyyy-MM-dd');
+  const { data: row } = await sb
+    .from('daily_overrides')
+    .select('notes')
+    .eq('household_id', householdId)
+    .eq('kind', 'prep_day')
+    .eq('date', dateISO)
+    .maybeSingle();
+  if (!row?.notes) return null;
+
+  const items = String(row.notes)
+    .split(/\n+/)
+    .map((s: string) => s.replace(/^[-•*\s]+/, '').trim())
+    .filter(Boolean);
+  if (items.length === 0) return null;
+
+  const dateLabel = tomorrow.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const lines: string[] = [];
+  lines.push(`Items to prepare for the kids for tomorrow (${dateLabel}):`);
+  lines.push('');
+  for (const it of items) lines.push(`- ${it}`);
+  return {
+    subject: `Prep for tomorrow — ${items.length} item${items.length === 1 ? '' : 's'}`,
+    body: lines.join('\n'),
+  };
+}
+
+/**
  * Saturday-evening reminder for the grandparents. Short and warm: just
  * point at their personal link and let them browse.
  */

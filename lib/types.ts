@@ -97,6 +97,8 @@ export interface PickupSlot {
   parent_notes: string | null;
   /** Per-event one-off pack reminder ("fancy clothes for Pesach"). */
   pack_notes: string | null;
+  /** Special at-Gan activities (Shavuot, Lag Baomer, parent days) — helper stays the whole time. */
+  requires_full_presence: boolean;
   status: SlotStatus;
   reminder_sent_at: string | null;
   claim_cutoff_at: string | null;

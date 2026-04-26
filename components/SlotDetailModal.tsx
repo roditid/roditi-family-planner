@@ -136,6 +136,18 @@ export default function SlotDetailModal({
           {via && <DetailLoc label={`Then go to${slot.activity_start_time ? ` · ${slot.title} ${prettyTime(slot.activity_start_time)}${slot.end_time ? ` – ${prettyTime(slot.end_time)}` : ''}` : ''}`} loc={via} />}
           <DetailLoc label={via || (slot.additional_children ?? []).length > 0 ? 'Then drop off at' : 'Drop off at'} loc={dest} />
 
+          {/* Full-presence indicator — special at-Gan activities (Shavuot,
+              Lag Baomer, parents day) require the helper to stay for the
+              whole event, not just do pickup. */}
+          {slot.requires_full_presence && (
+            <div className="rounded-xl bg-coral-400/12 border border-coral-400/30 p-3.5 text-sm">
+              <div className="text-[10px] uppercase tracking-[0.1em] text-coral-600 font-bold mb-1">★ Stay the whole time</div>
+              <div className="text-ink-900 leading-relaxed">
+                This is a Gan event for parents/family — please be there from start to end, not just pickup.
+              </div>
+            </div>
+          )}
+
           {/* Stroller note — only when Yali is in the trip */}
           {yaliInTrip && <StrollerNote />}
 

@@ -71,6 +71,27 @@ export async function generateDefaultSlots(
     hasActivity.get(s.date)!.add(s.child_id);
   }
 
+  // 2b. Pull daily_overrides — no_gan suppresses defaults, early_dismissal
+  //     overrides the kid's pickup time for that day.
+  const { data: overrides } = await sb
+    .from('daily_overrides')
+    .select('child_id, date, kind, dismissal_time')
+    .eq('household_id', householdId)
+    .gte('date', start)
+    .lt('date', end);
+  const noGan = new Map<string, Set<string>>();         // date → set of child_id
+  const earlyDismissal = new Map<string, Map<string, string>>(); // date → child_id → time
+  for (const o of overrides ?? []) {
+    if (!o.child_id) continue;
+    if (o.kind === 'no_gan') {
+      if (!noGan.has(o.date)) noGan.set(o.date, new Set());
+      noGan.get(o.date)!.add(o.child_id);
+    } else if (o.kind === 'early_dismissal' && o.dismissal_time) {
+      if (!earlyDismissal.has(o.date)) earlyDismissal.set(o.date, new Map());
+      earlyDismissal.get(o.date)!.set(o.child_id, o.dismissal_time);
+    }
+  }
+
   // 3. Wipe unclaimed auto-defaults so we can regenerate cleanly.
   await sb
     .from('pickup_slots')
@@ -80,6 +101,20 @@ export async function generateDefaultSlots(
     .eq('status', 'unclaimed')
     .gte('date', start)
     .lt('date', end);
+
+  // 3b. Also delete CLAIMED auto-defaults that conflict with a no_gan
+  //     override — the Gan is closed, the trip can't happen, and leaving
+  //     a stale claim would confuse the helper. Activity slots are kept.
+  for (const [date, kidIds] of noGan) {
+    if (kidIds.size === 0) continue;
+    await sb
+      .from('pickup_slots')
+      .delete()
+      .eq('household_id', householdId)
+      .eq('source', 'auto-default')
+      .eq('date', date)
+      .in('child_id', Array.from(kidIds));
+  }
 
   // 4. Walk every weekday and generate the combined Gan→Home slot.
   let daysProcessed = 0;
@@ -91,8 +126,19 @@ export async function generateDefaultSlots(
     daysProcessed++;
 
     const withActivity = hasActivity.get(date) ?? new Set<string>();
+    const offToday = noGan.get(date) ?? new Set<string>();
+    const dismissalToday = earlyDismissal.get(date);
     const goingHome = eligibleKids
+      // Skip kids whose Gan is closed today (no_gan override).
+      .filter((k) => !offToday.has(k.id))
+      // Skip kids who already have an activity slot that day.
       .filter((k) => !withActivity.has(k.id))
+      // Apply per-day early-dismissal time overrides (clone so we don't
+      // mutate the eligibleKids list in place across days).
+      .map((k) => {
+        const override = dismissalToday?.get(k.id);
+        return override ? { ...k, gan_dismissal_time: override } : k;
+      })
       .sort(
         (a, b) =>
           (PROXIMITY_RANK[b.name] ?? 99) - (PROXIMITY_RANK[a.name] ?? 99)
