@@ -71,6 +71,14 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
   // Show "in 4 hours" / "in 25 min" / "starting now" when the pickup is
   // imminent (< 6 hours away). Coral + bold for urgent (< 30 min).
   const soon = relativeTimeUntil(slot.date, slot.pickup_time);
+  // Past = pickup_time more than 30 min ago in IL local time. Used by the
+  // compact (week) chip to gray out + show a "done" pill instead of
+  // "tap to claim" / time chip.
+  const isPast = (() => {
+    const [h, m] = slot.pickup_time.split(':').map(Number);
+    const slotMs = new Date(slot.date + 'T00:00:00').setHours(h, m, 0, 0);
+    return slotMs < Date.now() - 30 * 60 * 1000;
+  })();
 
   // Visual treatment per ownership state
   const surface =
@@ -130,7 +138,7 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className={`group relative w-full text-left rounded-xl border transition-all duration-150 active:scale-[0.985] overflow-hidden flex flex-col ${surface} ${pending ? 'opacity-90' : ''}`}
+          className={`group relative w-full text-left rounded-xl border transition-all duration-150 active:scale-[0.985] overflow-hidden flex flex-col ${surface} ${pending ? 'opacity-90' : ''} ${isPast ? 'opacity-65 grayscale-[0.35]' : ''}`}
         >
           {/* Photo block — square aspect (1:1) so each chip leaves more room
               for the route + status text below. Combined sibling trips show
@@ -145,7 +153,7 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
             <span className="absolute left-1.5 bottom-1.5 px-1.5 py-0.5 rounded-md bg-cream-50/95 text-ink-900 font-display text-[15px] tabular-nums leading-none shadow-sm">
               {prettyTime(slot.pickup_time)}
             </span>
-            {soon && (
+            {!isPast && soon && (
               <span
                 className={
                   'absolute left-1.5 top-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-[0.08em] shadow-sm leading-none ' +
@@ -155,10 +163,15 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
                 {soon.label}
               </span>
             )}
-            {ownership === 'mine' && (
+            {isPast && (
+              <span className="absolute left-1.5 top-1.5 px-1.5 py-0.5 rounded-md bg-ink-900/80 text-cream-50 text-[10px] font-bold uppercase tracking-[0.1em] shadow-sm leading-none">
+                ✓ Done
+              </span>
+            )}
+            {!isPast && ownership === 'mine' && (
               <span className="absolute right-1.5 top-1.5 h-5 w-5 rounded-full bg-cream-50 text-sage-700 grid place-items-center text-[11px] font-bold shadow-sm">✓</span>
             )}
-            {ownership === 'open' && (
+            {!isPast && ownership === 'open' && (
               <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-coral-400 ring-2 ring-cream-50" aria-hidden />
             )}
           </div>
@@ -219,6 +232,10 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
                 <span className="inline-flex items-center gap-1.5 pl-0.5 pr-2 py-0.5 rounded-full bg-sage-500/12 text-sage-700 text-[10px] font-bold uppercase tracking-[0.08em]">
                   <HelperAvatar name={claimedBy?.full_name ?? '?'} photoUrl={claimedBy?.photo_url} size={20} ring />
                   {firstNameOf(claimedBy?.full_name)}
+                </span>
+              ) : isPast ? (
+                <span className="inline-flex items-center gap-1 px-1.5 py-1 rounded-md bg-ink-900/8 text-ink-700/60 text-[10px] font-bold uppercase tracking-[0.1em]">
+                  ✓ Done
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 px-1.5 py-1 rounded-md bg-coral-400/15 text-coral-600 text-[10px] font-bold uppercase tracking-[0.1em]">

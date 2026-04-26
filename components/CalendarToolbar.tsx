@@ -44,23 +44,26 @@ export default function CalendarToolbar({ view, anchor, rangeLabel }: Props) {
         {/* View toggle */}
         <div className="inline-flex rounded-xl bg-black/[0.06] p-1 text-sm">
           <ViewBtn label="Schedule" active={view === 'schedule'} onClick={() => setView('schedule')} />
-          <ViewBtn label="Day"      active={view === 'day'}      onClick={() => setView('day')} />
           <ViewBtn label="Week"     active={view === 'week'}     onClick={() => setView('week')} />
+          <ViewBtn label="Day"      active={view === 'day'}      onClick={() => setView('day')} />
         </div>
 
-        {/* Date nav — week-by-week for Schedule too now. */}
+        {/* Date nav — center button shows the current range and snaps to
+            today on tap. Range is the label so we don't double-print it. */}
         <div className="inline-flex items-center gap-0.5">
           <button onClick={() => step(-1)} aria-label="Previous"
             className="h-9 w-9 grid place-items-center rounded-lg hover:bg-black/5 active:scale-90 transition-transform text-lg">←</button>
-          <button onClick={goToday} className="px-3 py-1.5 rounded-lg hover:bg-black/5 active:scale-95 transition-transform text-sm font-medium">
-            Today
+          <button
+            onClick={goToday}
+            title="Jump to today"
+            className="px-3 py-1.5 rounded-lg hover:bg-black/5 active:scale-95 transition-transform font-display text-base sm:text-lg tabular-nums text-ink-800"
+          >
+            {rangeLabel}
           </button>
           <button onClick={() => step(1)} aria-label="Next"
             className="h-9 w-9 grid place-items-center rounded-lg hover:bg-black/5 active:scale-90 transition-transform text-lg">→</button>
         </div>
       </div>
-
-      <div className="mt-2 font-display text-base sm:text-lg text-ink-700/80">{rangeLabel}</div>
     </div>
   );
 }

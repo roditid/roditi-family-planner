@@ -27,16 +27,16 @@ interface Props {
  */
 export default function CalendarView({ view, anchor, slots, currentUserId, currentUserPhone, currentUserName, isAdmin, onlyMine }: Props) {
   const days = daysForView(view, anchor);
-  // Drop pickups whose time is already 30+ minutes in the past (helper
-  // can't claim them anymore). 30-min grace so a slot disappearing
-  // mid-walk doesn't surprise anyone. IL timezone — slot.date + pickup_time
-  // are stored as the household-local time.
+  // Past pickups (30+ min past pickup_time) are filtered out of the
+  // schedule + day views so the chip list only shows what's actionable.
+  // The week view KEEPS past slots so the helper sees a full week's
+  // record — chips for past slots render in a "done" state inside SlotChip.
   const nowMs = Date.now();
   const stillRelevant = (s: SlotView) => {
     const slotUtc = fromZonedTime(`${s.date}T${s.pickup_time}`, 'Asia/Jerusalem');
     return slotUtc.getTime() > nowMs - 30 * 60 * 1000;
   };
-  const upcoming = slots.filter(stillRelevant);
+  const upcoming = view === 'week' ? slots : slots.filter(stillRelevant);
   const filtered = onlyMine
     ? upcoming.filter((s) => s.assignment?.assigned_to_user_id === currentUserId)
     : upcoming;

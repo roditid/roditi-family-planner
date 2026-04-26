@@ -5,8 +5,13 @@ const PROTECTED = ['/my-pickups', '/pickups', '/admin'];
 const DEMO_COOKIE = 'demo_user_id';
 
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next();
   const path = req.nextUrl.pathname;
+  // Forward the pathname as a request header so server components can read
+  // it via next/headers (NextPickupBanner uses this to skip its CTA when
+  // the user is already on /my-pickups).
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set('x-pathname', path);
+  const res = NextResponse.next({ request: { headers: requestHeaders } });
 
   // Demo mode: gate on the demo cookie; redirect to /demo-login if absent.
   if (process.env.DEMO_MODE === 'true' || process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {

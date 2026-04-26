@@ -59,8 +59,13 @@ export default async function NextPickupBanner({
   const slot = mine ?? (isAdmin ? family : null);
 
   if (!slot) {
-    // Helper with nothing assigned — gentle nudge.
+    // Helper with nothing assigned — gentle nudge ONLY when they're not
+    // already on the pickups page (the CTA would be circular). Pathname
+    // comes from the x-pathname request header set by middleware.
     if (sorted.length === 0) return null;
+    const { headers } = await import('next/headers');
+    const path = headers().get('x-pathname') ?? '';
+    if (path.startsWith('/my-pickups')) return null;
     return (
       <Banner tone="open">
         <span className="font-medium">Nothing assigned to you yet.</span>{' '}
