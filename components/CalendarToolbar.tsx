@@ -45,7 +45,6 @@ export default function CalendarToolbar({ view, anchor, rangeLabel }: Props) {
         <div className="inline-flex rounded-xl bg-black/[0.06] p-1 text-sm">
           <ViewBtn label="Schedule" active={view === 'schedule'} onClick={() => setView('schedule')} />
           <ViewBtn label="Day"      active={view === 'day'}      onClick={() => setView('day')} />
-          <ViewBtn label="3-day"    active={view === '3day'}     onClick={() => setView('3day')} />
           <ViewBtn label="Week"     active={view === 'week'}     onClick={() => setView('week')} />
         </div>
 

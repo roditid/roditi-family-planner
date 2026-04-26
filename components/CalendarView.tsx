@@ -58,7 +58,6 @@ export default function CalendarView({ view, anchor, slots, currentUserId, curre
       <SwipeArea view={view} anchor={anchor}>
         {view === 'schedule' && <ScheduleLayout days={days} byDay={byDay} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} isAdmin={isAdmin} />}
         {view === 'day'      && <ScheduleLayout days={days} byDay={byDay} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} isAdmin={isAdmin} />}
-        {view === '3day'     && <ColumnsLayout days={days} byDay={byDay} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} isAdmin={isAdmin} cols={3} />}
         {view === 'week'     && <ColumnsLayout days={days} byDay={byDay} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} isAdmin={isAdmin} cols={7} />}
       </SwipeArea>
 
@@ -145,10 +144,9 @@ function ScheduleLayout({ days, byDay, currentUserId, currentUserPhone, currentU
 
 function ColumnsLayout({
   days, byDay, currentUserId, currentUserPhone, currentUserName, isAdmin, cols,
-}: { days: Date[]; byDay: Map<string, SlotView[]>; currentUserId: string; currentUserPhone?: string | null; currentUserName?: string | null; isAdmin?: boolean; cols: 3 | 7 }) {
-  // 3-day: roomier columns now that compact chips pack more detail.
+}: { days: Date[]; byDay: Map<string, SlotView[]>; currentUserId: string; currentUserPhone?: string | null; currentUserName?: string | null; isAdmin?: boolean; cols: 7 }) {
   // Week: keeps 7 cols viable but each is a real card with route + status.
-  const minColWidth = cols === 3 ? 130 : 150;
+  const minColWidth = 150;
   return (
     <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 snap-x snap-mandatory pb-2">
       <div

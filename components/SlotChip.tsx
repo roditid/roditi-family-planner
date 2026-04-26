@@ -125,9 +125,6 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
   // it we show time, kid label(s), activity, pickup → drop-off, end time,
   // and a status pill. Tap body opens the modal for full detail + claim.
   if (density === 'compact') {
-    const pickupLabel = pickup?.label ?? null;
-    const destLabel = dest?.label ?? null;
-    const viaLabel = via?.label ?? null;
     return (
       <>
         <button
@@ -135,10 +132,10 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
           onClick={() => setOpen(true)}
           className={`group relative w-full text-left rounded-xl border transition-all duration-150 active:scale-[0.985] overflow-hidden flex flex-col ${surface} ${pending ? 'opacity-90' : ''}`}
         >
-          {/* Photo block — taller portrait crop (3:4) for a stronger face
-              presence in narrow columns. Combined sibling trips show kids
-              side-by-side at equal widths. */}
-          <div className="relative w-full flex gap-0.5" style={{ aspectRatio: '3 / 4' }}>
+          {/* Photo block — square aspect (1:1) so each chip leaves more room
+              for the route + status text below. Combined sibling trips show
+              kids side-by-side at equal widths. */}
+          <div className="relative w-full flex gap-0.5" style={{ aspectRatio: '1 / 1' }}>
             {allKids.map((kid) => (
               <div key={kid.id} className="flex-1 relative min-w-0">
                 <ChildAvatar child={kid} shape="rect" rounded="rounded-none" />
@@ -181,26 +178,28 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
               {slot.title}
             </div>
 
-            {/* Route summary — pickup → via → drop-off, each on its own line */}
+            {/* Route summary — every stop on its own line. Includes the
+                additional siblings' Ganim as 'via' stops on combined trips,
+                so a Yali → Liam → Home shows from / via / to instead of just
+                from / to. */}
             <div className={`text-[11px] leading-snug space-y-0.5 ${ownership === 'mine' ? 'opacity-85' : 'text-ink-700/65'}`}>
-              {pickupLabel && (
-                <div className="flex gap-1">
-                  <span className="opacity-60 shrink-0">from</span>
-                  <span className="truncate">{pickupLabel}</span>
-                </div>
-              )}
-              {viaLabel && (
-                <div className="flex gap-1">
-                  <span className="opacity-60 shrink-0">via</span>
-                  <span className="truncate">{viaLabel}</span>
-                </div>
-              )}
-              {destLabel && (
-                <div className="flex gap-1">
-                  <span className="opacity-60 shrink-0">to</span>
-                  <span className="truncate">{destLabel}</span>
-                </div>
-              )}
+              {(() => {
+                type Row = { label: string; text: string };
+                const rows: Row[] = [];
+                if (pickup?.label) rows.push({ label: 'from', text: pickup.label });
+                for (const k of slot.additional_children ?? []) {
+                  const sl = (k as any).school_location;
+                  if (sl?.label) rows.push({ label: 'via', text: sl.label });
+                }
+                if (via?.label) rows.push({ label: 'via', text: via.label });
+                if (dest?.label) rows.push({ label: 'to', text: dest.label });
+                return rows.map((r, i) => (
+                  <div key={i} className="flex gap-1">
+                    <span className="opacity-60 shrink-0">{r.label}</span>
+                    <span className="truncate">{r.text}</span>
+                  </div>
+                ));
+              })()}
             </div>
 
             {slot.end_time && (

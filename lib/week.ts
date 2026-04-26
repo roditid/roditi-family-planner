@@ -1,6 +1,6 @@
 import { addDays, format, parseISO, startOfWeek } from 'date-fns';
 
-export type CalView = 'schedule' | 'day' | '3day' | 'week';
+export type CalView = 'schedule' | 'day' | 'week';
 
 export function weekStart(d: Date | string = new Date()) {
   const date = typeof d === 'string' ? parseISO(d) : d;
@@ -38,13 +38,11 @@ export function daysOfWeek(anchor: Date | string = new Date()) {
  *              week — helpers tap prev/next to flip through weeks rather
  *              than endlessly scrolling.
  *  - day:      anchor only
- *  - 3day:     anchor + next 2 (3 columns side-by-side)
  *  - week:     anchor + next 6 (7 columns side-by-side)
  */
 export function daysForView(view: CalView, anchor: Date | string = new Date()): Date[] {
   const a = typeof anchor === 'string' ? parseISO(anchor) : anchor;
   if (view === 'day') return [a];
-  if (view === '3day') return [0, 1, 2].map((i) => addDays(a, i));
   if (view === 'schedule') {
     // Snap to the Sunday of the anchor's week, then take Sun–Thu.
     const sunday = weekStart(a);
@@ -57,7 +55,6 @@ export function daysForView(view: CalView, anchor: Date | string = new Date()): 
 /** Step amount when user clicks prev/next, in days. */
 export function stepForView(view: CalView): number {
   if (view === 'day') return 1;
-  if (view === '3day') return 3;
   return 7; // schedule + week — both step a full week
 }
 
