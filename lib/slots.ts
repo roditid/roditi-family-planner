@@ -1,27 +1,52 @@
-import { SupabaseClient } from '@supabase/supabase-js';
+import { cache } from 'react';
 import type { SlotView, Child } from './types';
 import { demoMode } from './demo-session';
 import { listSlots } from './demo-store';
+import { supabaseServer } from './supabase/server';
 
 /**
  * Fetch hydrated pickup slots for a household between two dates (inclusive of
- * start, exclusive of end). Uses a left-join pattern so unclaimed slots
- * aren't dropped: first pull slots + child/activity/locations in one round
- * trip, then pull active assignments separately and stitch them.
+ * start, exclusive of end).
  *
- * Also stitches:
- *   - the via_location (intermediate stop, e.g. activity location)
- *   - additional_children (combined siblings on a Gan→Home trip)
+ * Performance:
+ *  - Wrapped in React cache() so the layout (NextPickupBanner), page, and
+ *    any nested server components share a single round-trip per request.
+ *  - The two follow-up queries (assignments + extra-children) run in
+ *    parallel via Promise.all, cutting the round-trip count from 3 to 2.
  *
  * In DEMO_MODE, reads from the in-memory demo store instead.
  */
-export async function fetchSlots(
-  sb: SupabaseClient,
-  householdId: string,
-  startISO: string,
-  endISO: string
+export const fetchSlots = cache(_fetchSlots);
+
+async function _fetchSlots(
+  // The first parameter used to be the SupabaseClient, but caching keys
+  // can't include functions / clients. We now grab the client inside —
+  // every caller was already passing the same supabaseServer() anyway.
+  // The legacy signature (sb, householdId, startISO, endISO) is preserved
+  // for compatibility — the sb argument is ignored when cached.
+  _sbOrHousehold: any,
+  householdIdOrStart?: string,
+  startISOorEnd?: string,
+  endISOarg?: string
 ): Promise<SlotView[]> {
+  // Argument compatibility: support both old (sb, householdId, start, end)
+  // and new (householdId, start, end) callers.
+  let householdId: string;
+  let startISO: string;
+  let endISO: string;
+  if (typeof _sbOrHousehold === 'string') {
+    householdId = _sbOrHousehold;
+    startISO = householdIdOrStart!;
+    endISO = startISOorEnd!;
+  } else {
+    householdId = householdIdOrStart!;
+    startISO = startISOorEnd!;
+    endISO = endISOarg!;
+  }
+
   if (demoMode()) return listSlots(startISO, endISO);
+
+  const sb = supabaseServer();
 
   const { data: slots, error } = await sb
     .from('pickup_slots')
@@ -43,27 +68,30 @@ export async function fetchSlots(
   if (!slots || slots.length === 0) return [];
 
   const ids = slots.map((s: any) => s.id);
-  const { data: assigns } = await sb
-    .from('slot_assignments')
-    .select('*, profile:assigned_to_user_id(*)')
-    .in('pickup_slot_id', ids)
-    .eq('status', 'active');
-  const assignById = new Map((assigns ?? []).map((a: any) => [a.pickup_slot_id, a]));
-
-  // Collect every additional_child_id across all slots and fetch them in one
-  // go, including their Gan location object so the chip can show every kid's
-  // pickup address on a combined trip.
   const extraIds = Array.from(new Set(
     slots.flatMap((s: any) => (s.additional_child_ids as string[] | null) ?? [])
   ));
-  let childById = new Map<string, Child & { school_location: any }>();
-  if (extraIds.length > 0) {
-    const { data: kids } = await sb
-      .from('children')
-      .select('*, school_location:school_location_id(*)')
-      .in('id', extraIds);
-    childById = new Map((kids ?? []).map((k: any) => [k.id, k]));
-  }
+
+  // Run assignments + extra-children fetches in parallel — both depend on
+  // the slots query but neither on each other, so we save a round-trip.
+  const [assignsResult, kidsResult] = await Promise.all([
+    sb
+      .from('slot_assignments')
+      .select('*, profile:assigned_to_user_id(*)')
+      .in('pickup_slot_id', ids)
+      .eq('status', 'active'),
+    extraIds.length > 0
+      ? sb
+        .from('children')
+        .select('*, school_location:school_location_id(*)')
+        .in('id', extraIds)
+      : Promise.resolve({ data: [] as any[] }),
+  ]);
+
+  const assignById = new Map((assignsResult.data ?? []).map((a: any) => [a.pickup_slot_id, a]));
+  const childById = new Map<string, Child & { school_location: any }>(
+    (kidsResult.data ?? []).map((k: any) => [k.id, k])
+  );
 
   return slots.map((s: any) => ({
     ...s,

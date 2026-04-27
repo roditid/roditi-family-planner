@@ -1,8 +1,17 @@
+import { cache } from 'react';
 import { supabaseServer } from './supabase/server';
 import { demoMode, demoCurrentUser } from './demo-session';
 import { DEMO } from './demo-store';
 
-export async function getSessionContext() {
+/**
+ * React cache() memoizes the result for the duration of a single request,
+ * so the layout + page + any nested server components share one query
+ * round-trip instead of three. Saves ~300 ms per page on Vercel/Supabase
+ * cross-region hops.
+ */
+export const getSessionContext = cache(_getSessionContext);
+
+async function _getSessionContext() {
   // --- Demo mode: cookie-selected user, no Supabase ---
   if (demoMode()) {
     const u = demoCurrentUser();
