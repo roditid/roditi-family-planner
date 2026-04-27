@@ -4,7 +4,7 @@ import { fromZonedTime } from 'date-fns-tz';
 import { requireAuth } from '@/lib/permissions';
 import { supabaseServer } from '@/lib/supabase/server';
 import { fetchSlots } from '@/lib/slots';
-import { defaultAnchor, type CalView, daysForView, endOfSchoolWeek } from '@/lib/week';
+import { defaultAnchor, type CalView, daysForView, endOfSchoolWeek, weekStart } from '@/lib/week';
 import CalendarView from '@/components/CalendarView';
 import HelperAvatar from '@/components/HelperAvatar';
 
@@ -29,21 +29,29 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
   const startISO = format(days[0], 'yyyy-MM-dd');
   const endISO = format(addDays(days[days.length - 1], 1), 'yyyy-MM-dd');
 
-  const slots = await fetchSlots(sb, ctx.household!.id, startISO, endISO);
-
-  // "This week" counts only Sun→Thu of the current Israeli school week,
-  // and only pickups whose time hasn't already passed (a 16:00 pickup at
-  // 18:30 isn't something a helper can claim anymore).
+  // Two queries fetched in parallel:
+  //   1. The view's date range — what the calendar actually renders.
+  //   2. THIS week's range (Sun → Thu) — used by the "8 pickups need a
+  //      helper this week" subhead so the count never depends on which
+  //      view is open. fetchSlots is cached per range, so navigating back
+  //      to a previously-rendered range pays no extra cost.
   const tz = ctx.household?.timezone ?? 'Asia/Jerusalem';
-  const weekEnd = endOfSchoolWeek(new Date());
+  const weekStartISO = format(weekStart(new Date()), 'yyyy-MM-dd');
+  const weekEndISO = format(addDays(endOfSchoolWeek(new Date()), 1), 'yyyy-MM-dd');
+
+  const [slots, weekSlots] = await Promise.all([
+    fetchSlots(sb, ctx.household!.id, startISO, endISO),
+    fetchSlots(sb, ctx.household!.id, weekStartISO, weekEndISO),
+  ]);
+
+  // "This week" upcoming = today through Thursday, pickup_time hasn't
+  // passed by more than 30 min.
   const nowMs = Date.now();
-  const isUpcomingThisWeek = (s: any) => {
-    const slotDate = parseISO(s.date);
-    if (slotDate > weekEnd) return false;
+  const isUpcoming = (s: any) => {
     const slotUtc = fromZonedTime(`${s.date}T${s.pickup_time}`, tz);
-    return slotUtc.getTime() > nowMs - 30 * 60 * 1000;  // 30-min grace window
+    return slotUtc.getTime() > nowMs - 30 * 60 * 1000;
   };
-  const thisWeekUpcoming = slots.filter(isUpcomingThisWeek);
+  const thisWeekUpcoming = weekSlots.filter(isUpcoming);
   const myCount = thisWeekUpcoming.filter((s) => s.assignment?.assigned_to_user_id === ctx.user.id).length;
   const openCount = thisWeekUpcoming.filter((s) => s.status === 'unclaimed').length;
 

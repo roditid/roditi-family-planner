@@ -268,17 +268,16 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
       }}
       className={`relative rounded-2xl border transition-all duration-150 active:scale-[0.99] cursor-pointer overflow-hidden ${surface} ${pending ? 'opacity-90' : ''}`}
     >
-      <div className="p-3 sm:p-4 flex gap-3 sm:gap-4 items-stretch">
-        {/* PHOTO COLUMN — hero element. Solo trips use one tall portrait;
-            combined sibling trips show kids side-by-side at the same height
-            so you see ALL their faces at a glance. The combined column gets
-            wider to keep individual faces readable. */}
+      <div className="p-2.5 sm:p-3.5 flex gap-2.5 sm:gap-3.5 items-stretch">
+        {/* PHOTO COLUMN — hero element. Smaller on mobile so the text
+            content gets more breathing room. Combined sibling trips
+            scale slightly wider to keep individual faces readable. */}
         <div
-          className={`shrink-0 relative self-stretch min-h-[170px] flex gap-1`}
+          className={`shrink-0 relative self-stretch min-h-[140px] sm:min-h-[170px] flex gap-1`}
           style={{
-            width: isCombined ? `${Math.min(38 + (allKids.length - 1) * 14, 56)}%` : '38%',
-            maxWidth: isCombined ? `${Math.min(180 + (allKids.length - 1) * 60, 320)}px` : '180px',
-            minWidth: isCombined ? `${120 + (allKids.length - 1) * 56}px` : '120px',
+            width: isCombined ? `${Math.min(28 + (allKids.length - 1) * 10, 48)}%` : '28%',
+            maxWidth: isCombined ? `${Math.min(160 + (allKids.length - 1) * 56, 280)}px` : '160px',
+            minWidth: isCombined ? `${88 + (allKids.length - 1) * 44}px` : '88px',
           }}
         >
           {allKids.map((kid, i) => (

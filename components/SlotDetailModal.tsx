@@ -52,7 +52,7 @@ export default function SlotDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex sm:items-center justify-center pp-fade"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 pp-fade"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -60,25 +60,30 @@ export default function SlotDetailModal({
       {/* Backdrop */}
       <div className="absolute inset-0 bg-ink-900/40 backdrop-blur-sm" />
 
-      {/* Sheet:
-          • Mobile: full-screen takeover (h-[100dvh]). Avoids the bottom-
-            sheet height ambiguity that was breaking the body scroll —
-            the dynamic viewport unit 100dvh accounts for iOS Safari's
-            URL bar.
-          • Desktop: centered card capped at 90vh.
-          Layout uses CSS grid (auto / 1fr / auto) so the middle row is
-          always exactly the remaining height — no flex min-height
-          gotchas. The middle row has overflow-y-auto and reliably
-          scrolls when content is taller than the row. */}
+      {/* Sheet — centered popup on every viewport (no full-screen takeover).
+          Capped at 88dvh so the page peeks around it and it visibly reads
+          as a popup, not a takeover. CSS grid auto / minmax(0,1fr) / auto
+          so the body row reliably scrolls. */}
       <div
-        className="relative bg-cream-50 w-full h-[100dvh] sm:h-[min(90vh,800px)] sm:max-w-md sm:rounded-3xl shadow-cardHover sm:border sm:border-black/[0.04] grid overflow-hidden"
+        className="relative bg-cream-50 w-full max-w-md max-h-[88dvh] rounded-3xl shadow-cardHover border border-black/[0.04] grid overflow-hidden"
         style={{ gridTemplateRows: 'auto minmax(0, 1fr) auto' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Top bar with drag-handle (mobile) — fixed top-row of the grid */}
-        <div className="sm:hidden flex justify-center pt-2.5 pb-1">
-          <div className="h-1 w-10 rounded-full bg-black/15" />
-        </div>
+        {/* Always-visible close X — pinned to the sheet's top-right corner
+            so it stays put even as the body scrolls underneath. */}
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute top-2.5 right-2.5 z-10 h-9 w-9 grid place-items-center rounded-full bg-cream-50/95 text-ink-700 hover:text-ink-900 hover:bg-cream-200 active:scale-90 transition shadow-sm"
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
+            <path d="M2 2L12 12M12 2L2 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
+
+        {/* Spacer top-row of the grid — keeps the close X clear of the
+            scrollable body content. */}
+        <div className="h-2" />
 
         {/* min-h-0 is essential — grid items default to min-content size,
             which would let the body grow past its 1fr row instead of
@@ -127,13 +132,8 @@ export default function SlotDetailModal({
                 <span className="font-semibold text-ink-900">Pick up {prettyTime(slot.pickup_time)}</span>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              aria-label="Close"
-              className="text-ink-700/50 hover:text-ink-900 active:scale-90 transition-transform h-8 w-8 grid place-items-center rounded-lg"
-            >
-              ✕
-            </button>
+            {/* Old inline close button removed — replaced by the always-
+                visible sticky X pinned to the sheet's top-right corner. */}
           </div>
 
           {/* Stops: pickup → (additional siblings' Ganim) → via → drop-off.
