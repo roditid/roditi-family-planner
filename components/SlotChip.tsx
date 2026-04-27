@@ -131,119 +131,120 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
     />
   );
 
-  // ─── COMPACT (column views: 3-day / week): photo-led, taller card, more
-  // detail. The photo runs taller (3:4) so the kid's face dominates; below
-  // it we show time, kid label(s), activity, pickup → drop-off, end time,
-  // and a status pill. Tap body opens the modal for full detail + claim.
+  // ─── COMPACT (week column view): redesigned as a tight, calendar-style
+  // event card. No big photo strip — the kids' identity is conveyed by a
+  // small avatar cluster paired with the time at the top, then the title
+  // and a left-side color stripe on the leading edge. Mostly text; reads
+  // like a Google Calendar event with a family touch.
   if (density === 'compact') {
+    const stripeColor = slot.child.color;
+    const claimedFirst = firstNameOf(claimedBy?.full_name);
     return (
       <>
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className={`group relative w-full text-left rounded-xl border transition-all duration-150 active:scale-[0.985] overflow-hidden flex flex-col ${surface} ${pending ? 'opacity-90' : ''} ${isPast ? 'opacity-65 grayscale-[0.35]' : ''}`}
+          className={
+            `group relative w-full text-left rounded-lg overflow-hidden flex
+             border transition-all duration-150 active:scale-[0.985]
+             ${ownership === 'mine'
+               ? 'bg-sage-500 text-cream-50 border-sage-600 shadow-card'
+               : ownership === 'taken'
+                 ? 'bg-cream-50 border-black/[0.06] text-ink-900'
+                 : 'bg-cream-50 border-black/[0.06] text-ink-900 hover:border-coral-400/60 hover:shadow-card'}
+             ${pending ? 'opacity-90' : ''}
+             ${isPast ? 'opacity-60 grayscale-[0.4]' : ''}`
+          }
         >
-          {/* Photo strip — short banner (fixed 80px) so the chip is mostly
-              text. Faces stay recognizable via object-cover + face-biased
-              object-position. Combined sibling trips show kids side-by-side
-              at equal widths. */}
-          <div className="relative w-full flex gap-0.5" style={{ height: 80 }}>
-            {allKids.map((kid) => (
-              <div key={kid.id} className="flex-1 relative min-w-0">
-                <ChildAvatar child={kid} shape="rect" rounded="rounded-none" />
-              </div>
-            ))}
-            {/* Time chip overlaid bottom-left + relative-when below it when imminent */}
-            <span className="absolute left-1.5 bottom-1.5 px-1.5 py-0.5 rounded-md bg-cream-50/95 text-ink-900 font-display text-[15px] tabular-nums leading-none shadow-sm">
-              {prettyTime(slot.pickup_time)}
-            </span>
-            {!isPast && soon && (
-              <span
-                className={
-                  'absolute left-1.5 top-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-[0.08em] shadow-sm leading-none ' +
-                  (soon.urgent ? 'bg-coral-400 text-cream-50' : 'bg-cream-50/95 text-coral-600')
-                }
-              >
-                {soon.label}
-              </span>
-            )}
-            {isPast && (
-              <span className="absolute left-1.5 top-1.5 px-1.5 py-0.5 rounded-md bg-ink-900/80 text-cream-50 text-[10px] font-bold uppercase tracking-[0.1em] shadow-sm leading-none">
-                ✓ Done
-              </span>
-            )}
-            {!isPast && ownership === 'mine' && (
-              <span className="absolute right-1.5 top-1.5 h-5 w-5 rounded-full bg-cream-50 text-sage-700 grid place-items-center text-[11px] font-bold shadow-sm">✓</span>
-            )}
-            {!isPast && ownership === 'open' && (
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-coral-400 ring-2 ring-cream-50" aria-hidden />
-            )}
-          </div>
+          {/* Color stripe on the leading edge — kid identity at a glance,
+              like a calendar event. Width is ~3px; pulls from the primary
+              kid's color for combined trips. */}
+          <span
+            className="absolute inset-y-0 left-0 w-[3px]"
+            style={{ background: stripeColor }}
+            aria-hidden
+          />
 
-          {/* Text block — flex-1 so it stretches and fills any remaining
-              vertical space in the column. Generous spacing between rows. */}
-          <div className="px-2.5 py-2.5 flex-1 flex flex-col gap-1.5">
-            <div className="text-[9px] font-bold uppercase tracking-[0.12em] leading-none flex flex-wrap gap-x-1 gap-y-0.5">
-              {allKids.map((kid, i) => (
-                <span key={kid.id} style={{ color: ownership === 'mine' ? 'rgba(253,250,243,0.85)' : kid.color }}>
-                  {kid.name}
-                  {i < allKids.length - 1 && <span className={ownership === 'mine' ? 'opacity-50' : 'text-ink-700/40'}> →</span>}
-                </span>
-              ))}
+          <div className="flex-1 min-w-0 px-2.5 pl-3 py-2 flex flex-col gap-1.5">
+            {/* Top row: time on the left, mini avatar cluster on the right. */}
+            <div className="flex items-center gap-2">
+              <span className={`font-display tabular-nums text-[18px] leading-none ${ownership === 'mine' ? 'text-cream-50' : 'text-ink-900'}`}>
+                {prettyTime(slot.pickup_time)}
+              </span>
+              <div className="ml-auto flex -space-x-1.5 shrink-0">
+                {allKids.map((kid, i) => (
+                  <span
+                    key={kid.id}
+                    className={`h-7 w-7 rounded-full overflow-hidden ring-2 ${ownership === 'mine' ? 'ring-sage-500' : 'ring-cream-50'}`}
+                    style={{ background: kid.color, zIndex: allKids.length - i }}
+                  >
+                    {kid.photo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={kid.photo_url} alt={kid.name} className="w-full h-full object-cover" style={{ objectPosition: '50% 28%' }} />
+                    ) : (
+                      <span className="grid place-items-center w-full h-full text-cream-50 text-[10px] font-bold">{kid.name.slice(0, 1)}</span>
+                    )}
+                  </span>
+                ))}
+              </div>
             </div>
-            <div className={`font-display text-[15px] leading-[1.15] tracking-tight line-clamp-2 ${ownership === 'mine' ? 'text-cream-50' : 'text-ink-900'}`}>
+
+            {/* Title (kid names + activity). Combined → "Yali, Liam · Home" */}
+            <div className={`font-display text-[14px] leading-[1.2] tracking-tight ${ownership === 'mine' ? 'text-cream-50' : 'text-ink-900'}`}>
+              <span className="opacity-70 mr-1">
+                {allKids.map((k) => k.name).join(', ')} ·
+              </span>
               {slot.title}
             </div>
 
-            {/* Route summary — every stop on its own line. Includes the
-                additional siblings' Ganim as 'via' stops on combined trips,
-                so a Yali → Liam → Home shows from / via / to instead of just
-                from / to. */}
-            <div className={`text-[11px] leading-snug space-y-0.5 ${ownership === 'mine' ? 'opacity-85' : 'text-ink-700/65'}`}>
+            {/* Route — single condensed line: "Gan Yali → Gan Liam → Home" */}
+            <div className={`text-[11px] leading-snug truncate ${ownership === 'mine' ? 'opacity-85' : 'text-ink-700/65'}`}>
               {(() => {
-                type Row = { label: string; text: string };
-                const rows: Row[] = [];
-                if (pickup?.label) rows.push({ label: 'from', text: pickup.label });
+                const labels: string[] = [];
+                if (pickup?.label) labels.push(pickup.label);
                 for (const k of slot.additional_children ?? []) {
                   const sl = (k as any).school_location;
-                  if (sl?.label) rows.push({ label: 'via', text: sl.label });
+                  if (sl?.label) labels.push(sl.label);
                 }
-                if (via?.label) rows.push({ label: 'via', text: via.label });
-                if (dest?.label) rows.push({ label: 'to', text: dest.label });
-                return rows.map((r, i) => (
-                  <div key={i} className="flex gap-1">
-                    <span className="opacity-60 shrink-0">{r.label}</span>
-                    <span className="truncate">{r.text}</span>
-                  </div>
-                ));
+                if (via?.label) labels.push(via.label);
+                if (dest?.label) labels.push(dest.label);
+                return labels.join('  →  ');
               })()}
             </div>
 
-            {slot.end_time && (
-              <div className={`text-[10px] tabular-nums uppercase tracking-wider font-semibold ${ownership === 'mine' ? 'opacity-70' : 'text-ink-700/50'}`}>
-                ends {prettyTime(slot.end_time)}
-              </div>
-            )}
-
-            {/* Status pill — bottom-aligned via mt-auto so all chips line up */}
-            <div className="mt-auto pt-1.5">
-              {ownership === 'mine' ? (
-                <span className="inline-flex items-center gap-1 px-1.5 py-1 rounded-md bg-cream-50/15 text-cream-50 text-[10px] font-bold uppercase tracking-[0.1em]">
-                  <span className="h-3.5 w-3.5 rounded-full bg-cream-50 text-sage-700 grid place-items-center text-[9px]">✓</span>
-                  You're on it
+            {/* Status row */}
+            <div className="mt-auto pt-1 flex items-center gap-1.5 flex-wrap">
+              {ownership === 'mine' && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-cream-50/20 text-cream-50 text-[10px] font-bold uppercase tracking-[0.08em]">
+                  <span className="text-cream-50">✓</span> You're on it
                 </span>
-              ) : ownership === 'taken' ? (
-                <span className="inline-flex items-center gap-1.5 pl-0.5 pr-2 py-0.5 rounded-full bg-sage-500/12 text-sage-700 text-[10px] font-bold uppercase tracking-[0.08em]">
-                  <HelperAvatar name={claimedBy?.full_name ?? '?'} photoUrl={claimedBy?.photo_url} size={20} ring />
-                  {firstNameOf(claimedBy?.full_name)}
+              )}
+              {ownership === 'taken' && (
+                <span className="inline-flex items-center gap-1 pl-0.5 pr-1.5 py-0.5 rounded-full bg-sage-500/12 text-sage-700 text-[10px] font-bold uppercase tracking-[0.08em]">
+                  <HelperAvatar name={claimedBy?.full_name ?? '?'} photoUrl={claimedBy?.photo_url} size={16} ring />
+                  {claimedFirst}
                 </span>
-              ) : isPast ? (
-                <span className="inline-flex items-center gap-1 px-1.5 py-1 rounded-md bg-ink-900/8 text-ink-700/60 text-[10px] font-bold uppercase tracking-[0.1em]">
+              )}
+              {ownership === 'open' && !isPast && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-coral-400/15 text-coral-600 text-[10px] font-bold uppercase tracking-[0.08em]">
+                  Tap to claim
+                </span>
+              )}
+              {isPast && ownership !== 'mine' && ownership !== 'taken' && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-ink-900/8 text-ink-700/60 text-[10px] font-bold uppercase tracking-[0.08em]">
                   ✓ Done
                 </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 px-1.5 py-1 rounded-md bg-coral-400/15 text-coral-600 text-[10px] font-bold uppercase tracking-[0.1em]">
-                  Tap to claim
+              )}
+              {!isPast && soon && (
+                <span
+                  className={
+                    'shrink-0 text-[10px] uppercase tracking-[0.08em] font-bold px-1.5 py-0.5 rounded-md leading-none ' +
+                    (soon.urgent
+                      ? (ownership === 'mine' ? 'bg-coral-400 text-cream-50' : 'bg-coral-400 text-cream-50')
+                      : (ownership === 'mine' ? 'bg-cream-50/15 text-cream-50' : 'bg-coral-400/15 text-coral-600'))
+                  }
+                >
+                  {soon.label}
                 </span>
               )}
             </div>

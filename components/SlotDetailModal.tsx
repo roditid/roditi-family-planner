@@ -71,8 +71,8 @@ export default function SlotDetailModal({
           gotchas. The middle row has overflow-y-auto and reliably
           scrolls when content is taller than the row. */}
       <div
-        className="relative bg-cream-50 w-full h-[100dvh] sm:h-auto sm:max-w-md sm:max-h-[90vh] sm:rounded-3xl shadow-cardHover sm:border sm:border-black/[0.04] grid overflow-hidden"
-        style={{ gridTemplateRows: 'auto 1fr auto' }}
+        className="relative bg-cream-50 w-full h-[100dvh] sm:h-[min(90vh,800px)] sm:max-w-md sm:rounded-3xl shadow-cardHover sm:border sm:border-black/[0.04] grid overflow-hidden"
+        style={{ gridTemplateRows: 'auto minmax(0, 1fr) auto' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top bar with drag-handle (mobile) — fixed top-row of the grid */}

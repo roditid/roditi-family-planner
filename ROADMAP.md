@@ -95,6 +95,10 @@ Liam waits 4 hours.
   the notification channel decision — once Twilio (or another channel)
   is wired up we can fan-out a stroller reminder automatically on every
   Yali claim.
+- **Pickup reminders to claimers** — fan-out a reminder to the helper
+  who claimed a slot, either 24h before the pickup or the morning of
+  (Paula deciding which window). Channel piggybacks on whatever we
+  settle on for the broader notification stack.
 - **Photo of Yali** — replaced with the rocking-horse portrait. Per-kid
   object-position tuned in CSS.
 
