@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { demoMode, demoCurrentUser } from '@/lib/demo-session';
 import { unclaimSlot, DEMO } from '@/lib/demo-store';
 import { recordEvent } from '@/lib/events';
@@ -31,7 +32,10 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     .eq('status', 'active');
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-  await sb.from('pickup_slots').update({ status: 'unclaimed' }).eq('id', params.id);
+  // pickup_slots.status flip needs the admin client — RLS only allows
+  // admins to write to pickup_slots. See claim/route.ts for context.
+  const admin = supabaseAdmin();
+  await admin.from('pickup_slots').update({ status: 'unclaimed' }).eq('id', params.id);
 
   const { data: slot } = await sb
     .from('pickup_slots')

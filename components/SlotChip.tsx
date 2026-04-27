@@ -35,8 +35,15 @@ type ClaimState = 'mine' | 'taken' | 'open';
  * a toast. No more 500ms spinner staring contests.
  */
 export default function SlotChip({ slot, currentUserId, currentUserPhone, currentUserName, isAdmin, density = 'roomy', showUnclaim = false }: Props) {
+  // Derive ownership from the active assignment as the source of truth,
+  // not slot.status. The two can drift if a status update is denied
+  // (RLS or transient failure) — the assignment row is what actually
+  // determines who has the pickup. Falling back to slot.status ensures
+  // we still get the right answer if the assignment join is missing for
+  // any reason.
   const initialState: ClaimState =
     slot.assignment?.assigned_to_user_id === currentUserId ? 'mine'
+      : slot.assignment ? 'taken'
       : slot.status === 'claimed' ? 'taken'
       : 'open';
 

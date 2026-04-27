@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { demoMode, demoCurrentUser } from '@/lib/demo-session';
 import { claimSlot } from '@/lib/demo-store';
 import { recordEvent } from '@/lib/events';
@@ -32,7 +33,14 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-  await sb.from('pickup_slots').update({ status: 'claimed' }).eq('id', params.id);
+  // pickup_slots.status flip needs the admin client. RLS on pickup_slots
+  // only allows admins to write — without service-role here, a helper's
+  // claim would silently leave slot.status='unclaimed' and the chip
+  // would render as "open" for everyone except the helper who claimed
+  // it. (That was the "Tataia claimed but Levanah still sees it open"
+  // bug.)
+  const admin = supabaseAdmin();
+  await admin.from('pickup_slots').update({ status: 'claimed' }).eq('id', params.id);
 
   // Hydrate the slot enough to send a confirmation email + log the event.
   const { data: slot } = await sb
