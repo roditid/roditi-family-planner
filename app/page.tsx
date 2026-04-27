@@ -120,10 +120,14 @@ export default async function Landing() {
 
 function HelperCard({ h }: { h: Person }) {
   // Friendly slug if available, otherwise fall back to /login (shouldn't normally happen).
+  // Use a plain <a> instead of <Link> so the click triggers a full
+  // navigation. Next.js client-side routing was occasionally landing the
+  // user on a stale session because cookies set by the slug route's
+  // verifyOtp weren't being applied before the next-page render.
   const href = h.magic_slug ? `/${h.magic_slug}` : '/login';
   const first = (h.full_name ?? '').replace(/\(.*?\)/g, '').trim().split(/\s+/)[0] || h.full_name;
   return (
-    <Link
+    <a
       href={href}
       className="card flex flex-col items-center text-center p-4 hover:border-sage-500/40 hover:shadow-cardHover active:scale-[0.97] transition-all duration-150"
     >
@@ -137,6 +141,6 @@ function HelperCard({ h }: { h: Person }) {
       <div className="text-[10px] text-ink-700/40 uppercase tracking-wider mt-1.5">
         {h.helper_kind === 'nanny' ? 'nanny' : 'grandparent'}
       </div>
-    </Link>
+    </a>
   );
 }

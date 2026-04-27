@@ -226,7 +226,9 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
                 </span>
               )}
               {ownership === 'open' && !isPast && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-coral-400/15 text-coral-600 text-[10px] font-bold uppercase tracking-[0.08em]">
+                // Claim/status info is sage-green family-wide. Time-relative
+                // chips use coral. The two never collide visually.
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-sage-500/15 text-sage-700 text-[10px] font-bold uppercase tracking-[0.08em]">
                   Tap to claim
                 </span>
               )}
@@ -268,16 +270,16 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
       }}
       className={`relative rounded-2xl border transition-all duration-150 active:scale-[0.99] cursor-pointer overflow-hidden ${surface} ${pending ? 'opacity-90' : ''}`}
     >
-      <div className="p-2.5 sm:p-3.5 flex gap-2.5 sm:gap-3.5 items-stretch">
-        {/* PHOTO COLUMN — hero element. Smaller on mobile so the text
-            content gets more breathing room. Combined sibling trips
-            scale slightly wider to keep individual faces readable. */}
+      <div className="p-2 sm:p-3 flex gap-2.5 sm:gap-3 items-stretch">
+        {/* PHOTO COLUMN — hero element. Tighter on mobile so the chip
+            reads more like the compact week-view tile. Combined sibling
+            trips scale slightly wider per kid for legibility. */}
         <div
-          className={`shrink-0 relative self-stretch min-h-[140px] sm:min-h-[170px] flex gap-1`}
+          className={`shrink-0 relative self-stretch min-h-[108px] sm:min-h-[160px] flex gap-1`}
           style={{
-            width: isCombined ? `${Math.min(28 + (allKids.length - 1) * 10, 48)}%` : '28%',
-            maxWidth: isCombined ? `${Math.min(160 + (allKids.length - 1) * 56, 280)}px` : '160px',
-            minWidth: isCombined ? `${88 + (allKids.length - 1) * 44}px` : '88px',
+            width: isCombined ? `${Math.min(22 + (allKids.length - 1) * 8, 42)}%` : '22%',
+            maxWidth: isCombined ? `${Math.min(140 + (allKids.length - 1) * 48, 240)}px` : '140px',
+            minWidth: isCombined ? `${68 + (allKids.length - 1) * 36}px` : '68px',
           }}
         >
           {allKids.map((kid, i) => (
@@ -295,17 +297,17 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
         </div>
 
         {/* CONTENT COLUMN */}
-        <div className="flex-1 min-w-0 space-y-2">
+        <div className="flex-1 min-w-0 space-y-1.5 sm:space-y-2">
           {/* Time headline + relative-when. Activity hours render as a SECOND
               line below so the helper sees two distinct things:
                 • when they pick the kid up (the big number — Gan dismissal)
                 • when the activity itself runs (smaller, e.g. "Soccer 17:00 – 18:30") */}
-          <div className="flex items-baseline gap-2.5 flex-wrap">
-            <span className="font-display text-3xl sm:text-4xl tabular-nums leading-none tracking-tight">
+          <div className="flex items-baseline gap-2 sm:gap-2.5 flex-wrap">
+            <span className="font-display text-2xl sm:text-4xl tabular-nums leading-none tracking-tight">
               {prettyTime(slot.pickup_time)}
             </span>
             <span className={`text-[10px] uppercase tracking-[0.1em] font-bold ${ownership === 'mine' ? 'opacity-70' : 'text-ink-700/45'}`}>
-              pick up
+              {slot.requires_full_presence ? 'arrive' : 'pick up'}
             </span>
             {soon && (
               <span
@@ -446,7 +448,10 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
               </span>
             ) : (
               <>
-                <span className="text-xs font-bold uppercase tracking-[0.1em] text-coral-600 shrink-0">Needs a helper</span>
+                {/* "Needs a helper" status pill switches from coral to
+                    sage so it lines up with the rest of the claim/status
+                    visual language family-wide. */}
+                <span className="text-xs font-bold uppercase tracking-[0.1em] text-sage-700 shrink-0">Needs a helper</span>
                 <button
                   onClick={(e) => { e.stopPropagation(); doClaim(); }}
                   disabled={pending}

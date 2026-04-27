@@ -82,6 +82,40 @@ Liam waits 4 hours.
 - Could be modelled as a row in a new `child_dismissal_overrides` table
   (kid_id, date, dismissal_time, reason).
 
+### 6. Live calendar sync (push, not poll)
+**Why:** When Paula edits an event title to add `[Helper] ` prefix in the
+kids' calendar, she expects the website to reflect the claim immediately.
+Today the sync only runs when `/api/calendar/sync` is hit (admin button or
+cron). She'd have to manually refresh.
+
+**What to build:**
+- Google Calendar push notifications (webhooks). Set up a watch on the
+  calendar, register `/api/calendar/webhook` as the callback. Google pings
+  us on every change → we re-sync just that event.
+- Fallback: shorten the cron polling interval from "manual" to every
+  5–10 min while waiting for webhooks.
+
+### 7. Picnic / off-Gan activity flow (Home → Activity → Home)
+**Why:** A "Liam - Picnic Lag Baomer" event happens AFTER the Gan closes
+early. Helper picks Liam up at HOME (not Gan), takes him to picnic, then
+brings him back. Today's slot model assumes Gan→Activity→Home.
+
+**What to build:**
+- Detect when an event's start time is AFTER an existing `[Kid] - gan
+  until HH:MM` early-dismissal override on the same date.
+- For those events, set the slot's pickup_location to Home instead of
+  the kid's Gan. Activity location stays as via, destination Home.
+
+### 8. Cleaner URL: /home instead of /my-pickups
+**Why:** The "Home" header button takes you to /my-pickups. Paula expects
+the URL to match the label.
+
+**What to build:**
+- Either rename the route directory `app/(app)/my-pickups/` →
+  `app/(app)/home/` and update internal links, or add a Next.js rewrite:
+  `{ source: '/home', destination: '/my-pickups' }` so the URL displays
+  /home but the same code runs.
+
 ## Decisions still open
 
 - **Notification channel** — currently email. Twilio SMS or Twilio WhatsApp

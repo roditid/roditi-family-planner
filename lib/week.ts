@@ -34,22 +34,19 @@ export function daysOfWeek(anchor: Date | string = new Date()) {
 }
 
 /** Days the calendar should render for a given view, anchored on `anchor`.
- *  - schedule: Sun→Thu of the anchor's school week (5 days). Paginated by
- *              week — helpers tap prev/next to flip through weeks rather
- *              than endlessly scrolling.
- *  - day:      anchor only
- *  - week:     anchor + next 6 (7 columns side-by-side)
+ *  - schedule: Sun→Thu of the anchor's school week (5 days, vertical).
+ *  - day:      anchor only.
+ *  - week:     Sun→Thu of the anchor's school week (5 columns side-by-side).
+ *
+ * Both schedule and week snap to Sunday so weeks always read as
+ * separated units. Tapping prev/next steps a full week either way.
  */
 export function daysForView(view: CalView, anchor: Date | string = new Date()): Date[] {
   const a = typeof anchor === 'string' ? parseISO(anchor) : anchor;
   if (view === 'day') return [a];
-  if (view === 'schedule') {
-    // Snap to the Sunday of the anchor's week, then take Sun–Thu.
-    const sunday = weekStart(a);
-    return [0, 1, 2, 3, 4].map((i) => addDays(sunday, i));
-  }
-  // week = 7 columns side-by-side
-  return [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(a, i));
+  // schedule + week → Sun..Thu of anchor's week
+  const sunday = weekStart(a);
+  return [0, 1, 2, 3, 4].map((i) => addDays(sunday, i));
 }
 
 /** Step amount when user clicks prev/next, in days. */

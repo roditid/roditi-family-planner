@@ -51,45 +51,38 @@ export default function SlotDetailModal({
   const yaliInTrip = allKids.some((k) => k.name.toLowerCase() === 'yali');
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 pp-fade"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-    >
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-ink-900/40 backdrop-blur-sm" />
-
-      {/* Sheet — centered popup on every viewport (no full-screen takeover).
-          Capped at 88dvh so the page peeks around it and it visibly reads
-          as a popup, not a takeover. CSS grid auto / minmax(0,1fr) / auto
-          so the body row reliably scrolls. */}
-      <div
-        className="relative bg-cream-50 w-full max-w-md max-h-[88dvh] rounded-3xl shadow-cardHover border border-black/[0.04] grid overflow-hidden"
-        style={{ gridTemplateRows: 'auto minmax(0, 1fr) auto' }}
-        onClick={(e) => e.stopPropagation()}
+    // Outer fixed shell. The "page-scrolls" pattern: a scrollable
+    // backdrop wraps the centered sheet, so when content is taller than
+    // the viewport, backdrop+sheet scroll together. No flex/grid
+    // min-height tricks, no transforms on ancestors that could capture
+    // fixed positioning.
+    <div className="fixed inset-0 z-50" role="dialog" aria-modal="true">
+      {/* Always-visible close X — fixed to the viewport's top-right. Stays
+          put even when the user scrolls the modal contents. z-[60] keeps
+          it above the sheet. */}
+      <button
+        onClick={onClose}
+        aria-label="Close"
+        className="fixed top-3 right-3 z-[60] h-10 w-10 grid place-items-center rounded-full bg-cream-50 text-ink-800 hover:text-ink-900 active:scale-90 transition shadow-cardHover"
       >
-        {/* Always-visible close X — pinned to the sheet's top-right corner
-            so it stays put even as the body scrolls underneath. */}
-        <button
-          onClick={onClose}
-          aria-label="Close"
-          className="absolute top-2.5 right-2.5 z-10 h-9 w-9 grid place-items-center rounded-full bg-cream-50/95 text-ink-700 hover:text-ink-900 hover:bg-cream-200 active:scale-90 transition shadow-sm"
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
-            <path d="M2 2L12 12M12 2L2 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-        </button>
+        <svg width="16" height="16" viewBox="0 0 14 14" aria-hidden>
+          <path d="M2 2L12 12M12 2L2 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      </button>
 
-        {/* Spacer top-row of the grid — keeps the close X clear of the
-            scrollable body content. */}
-        <div className="h-2" />
-
-        {/* min-h-0 is essential — grid items default to min-content size,
-            which would let the body grow past its 1fr row instead of
-            scrolling. With min-h-0 the row constrains the body and
-            overflow-y-auto kicks in. Same trick as flex+min-h-0. */}
-        <div className="px-5 pt-2 pb-3 sm:px-6 sm:pt-4 sm:pb-3 space-y-4 overflow-y-auto min-h-0">
+      {/* Scrollable backdrop. Tap anywhere on it (outside the sheet) to
+          close. The backdrop colour + scroll live on the same element so
+          we don't need to layer pointer-events. */}
+      <div
+        className="absolute inset-0 overflow-y-auto bg-ink-900/40 backdrop-blur-sm"
+        onClick={onClose}
+      >
+        <div className="min-h-full flex items-center justify-center p-3 sm:p-6">
+          <div
+            className="relative bg-cream-50 w-full max-w-md rounded-3xl shadow-cardHover border border-black/[0.04] pp-fade"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 pt-12 pb-5 sm:px-6 sm:pt-12 sm:pb-6 space-y-4">
           {/* Confirmed banner — shown when this is now your pickup */}
           {ownership === 'mine' && (
             <div className="rounded-xl bg-sage-500/10 border border-sage-500/30 px-3.5 py-2.5 flex items-center gap-2.5">
@@ -129,7 +122,9 @@ export default function SlotDetailModal({
                   badge on the "Then go to" stop card below, so the helper
                   doesn't see two competing time lines at the top. */}
               <div className="text-sm text-ink-700/70 mt-0.5 tabular-nums">
-                <span className="font-semibold text-ink-900">Pick up {prettyTime(slot.pickup_time)}</span>
+                <span className="font-semibold text-ink-900">
+                  {slot.requires_full_presence ? 'Arrive' : 'Pick up'} {prettyTime(slot.pickup_time)}
+                </span>
               </div>
             </div>
             {/* Old inline close button removed — replaced by the always-
@@ -139,7 +134,11 @@ export default function SlotDetailModal({
           {/* Stops: pickup → (additional siblings' Ganim) → via → drop-off.
               Every Gan stop carries a "by HH:MM" badge in the corner so
               the helper can pace the walk. */}
-          <DetailLoc label="Pick up from" loc={pickup} byTime={slot.pickup_time ?? null} />
+          <DetailLoc
+            label={slot.requires_full_presence ? 'Be at' : 'Pick up from'}
+            loc={pickup}
+            byTime={slot.pickup_time ?? null}
+          />
           {(slot.additional_children ?? []).map((kid: any) => kid.school_location && (
             <DetailLoc
               key={kid.id}
@@ -189,32 +188,36 @@ export default function SlotDetailModal({
           )}
         </div>
 
-        {/* Pinned action bar — never gets pushed below the fold no matter
-            how tall the body grows. */}
-        {ownership !== 'taken' && (
-          <div className="shrink-0 border-t border-black/[0.06] bg-cream-50 px-5 py-3 sm:px-6 sm:py-4 space-y-2">
-            <button
-              onClick={onClaim}
-              disabled={pending}
-              className={
-                'w-full rounded-2xl py-4 text-base font-semibold transition-all duration-150 active:scale-[0.98] ' +
-                (ownership === 'mine'
-                  ? 'bg-black/[0.06] text-ink-900 hover:bg-black/[0.09]'
-                  : 'bg-sage-500 hover:bg-sage-600 text-cream-50 shadow-sm')
-              }
-            >
-              {pending ? '…' : ownership === 'mine' ? 'Unclaim this pickup' : 'Claim this pickup'}
-            </button>
-            {ownership === 'mine' && (
-              <ShareButtons
-                slot={slot}
-                currentUserPhone={currentUserPhone}
-                currentUserName={currentUserName}
-              />
+            {/* Action bar — at the bottom of the sheet's content flow. The
+                whole modal scrolls as one (page-scrolls pattern), so the
+                helper just scrolls down to reach this without needing a
+                pinned bar. */}
+            {ownership !== 'taken' && (
+              <div className="border-t border-black/[0.06] bg-cream-50 px-5 py-3 sm:px-6 sm:py-4 space-y-2 rounded-b-3xl">
+                <button
+                  onClick={onClaim}
+                  disabled={pending}
+                  className={
+                    'w-full rounded-2xl py-4 text-base font-semibold transition-all duration-150 active:scale-[0.98] ' +
+                    (ownership === 'mine'
+                      ? 'bg-black/[0.06] text-ink-900 hover:bg-black/[0.09]'
+                      : 'bg-sage-500 hover:bg-sage-600 text-cream-50 shadow-sm')
+                  }
+                >
+                  {pending ? '…' : ownership === 'mine' ? 'Unclaim this pickup' : 'Claim this pickup'}
+                </button>
+                {ownership === 'mine' && (
+                  <ShareButtons
+                    slot={slot}
+                    currentUserPhone={currentUserPhone}
+                    currentUserName={currentUserName}
+                  />
+                )}
+                {err && <div className="text-sm text-coral-600 font-medium">{err}</div>}
+              </div>
             )}
-            {err && <div className="text-sm text-coral-600 font-medium">{err}</div>}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

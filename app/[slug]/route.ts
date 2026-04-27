@@ -74,12 +74,17 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   if (profile.role === 'admin') next = '/admin';
 
   const res = NextResponse.redirect(new URL(next, base));
+  // The SSR client reads cookies from the REQUEST and writes them to the
+  // RESPONSE. We pretend there are no incoming cookies so a previous
+  // session (e.g. from a different slug visit) doesn't interfere with
+  // verifyOtp's new session — fixes the "every helper card lands on the
+  // same picker" bug Paula was seeing.
   const ssr = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get: (n: string) => req.cookies.get(n)?.value,
+        get: () => undefined,
         set: (n: string, v: string, o: CookieOptions) => res.cookies.set({ name: n, value: v, ...o }),
         remove: (n: string, o: CookieOptions) => res.cookies.set({ name: n, value: '', ...o }),
       },

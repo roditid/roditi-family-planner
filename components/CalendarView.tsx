@@ -58,7 +58,7 @@ export default function CalendarView({ view, anchor, slots, currentUserId, curre
       <SwipeArea view={view} anchor={anchor}>
         {view === 'schedule' && <ScheduleLayout days={days} byDay={byDay} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} isAdmin={isAdmin} />}
         {view === 'day'      && <ScheduleLayout days={days} byDay={byDay} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} isAdmin={isAdmin} />}
-        {view === 'week'     && <ColumnsLayout days={days} byDay={byDay} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} isAdmin={isAdmin} cols={7} />}
+        {view === 'week'     && <ColumnsLayout days={days} byDay={byDay} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} isAdmin={isAdmin} cols={5} />}
       </SwipeArea>
 
       {filtered.length === 0 && (() => {
@@ -144,7 +144,7 @@ function ScheduleLayout({ days, byDay, currentUserId, currentUserPhone, currentU
 
 function ColumnsLayout({
   days, byDay, currentUserId, currentUserPhone, currentUserName, isAdmin, cols,
-}: { days: Date[]; byDay: Map<string, SlotView[]>; currentUserId: string; currentUserPhone?: string | null; currentUserName?: string | null; isAdmin?: boolean; cols: 7 }) {
+}: { days: Date[]; byDay: Map<string, SlotView[]>; currentUserId: string; currentUserPhone?: string | null; currentUserName?: string | null; isAdmin?: boolean; cols: 5 }) {
   // Week: keeps 7 cols viable but each is a real card with route + status.
   const minColWidth = 150;
   // Past = pickup time more than 30 min ago in IL local time. Used to
@@ -155,12 +155,14 @@ function ColumnsLayout({
     return slotUtc.getTime() < nowMs - 30 * 60 * 1000;
   };
   return (
-    <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 snap-x snap-mandatory pb-2">
+    // 5 columns Sun→Thu fit on a phone without horizontal scroll, so we
+    // drop the snap-x scrolling that made sense at 7 columns. The grid
+    // simply fits the viewport and lets columns shrink as needed.
+    <div className="-mx-1 sm:mx-0">
       <div
-        className="grid gap-2"
+        className="grid gap-1.5"
         style={{
-          gridTemplateColumns: `repeat(${cols}, minmax(${minColWidth}px, 1fr))`,
-          minWidth: cols === 7 ? `${cols * minColWidth + 12}px` : undefined,
+          gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
         }}
       >
         {days.map((d) => {
