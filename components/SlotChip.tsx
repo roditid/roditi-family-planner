@@ -90,12 +90,17 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
     return slotMs < Date.now() - 30 * 60 * 1000;
   })();
 
-  // Visual treatment per ownership state
+  // Visual treatment per ownership state. Three distinct visual languages:
+  //  • 'mine'  → full sage fill, cream text — your active commitment.
+  //  • 'taken' → muted greyish surface, no shadow — visibly "settled,
+  //              someone else has it"; you don't need to act on this.
+  //  • 'open'  → cream surface with a coral-tinted border + hover lift
+  //              — calls for action.
   const surface =
     ownership === 'mine'
       ? 'bg-sage-500 text-cream-50 border-sage-600 shadow-card'
       : ownership === 'taken'
-        ? 'bg-cream-50 border-black/[0.06] text-ink-900'
+        ? 'bg-ink-900/[0.04] border-black/[0.06] text-ink-700/85'
         : 'bg-cream-50 border-coral-400/40 text-ink-900 hover:border-coral-400/70 hover:shadow-card';
 
   async function doClaim() {
