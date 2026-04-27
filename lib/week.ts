@@ -34,19 +34,21 @@ export function daysOfWeek(anchor: Date | string = new Date()) {
 }
 
 /** Days the calendar should render for a given view, anchored on `anchor`.
- *  - schedule: Sun→Thu of the anchor's school week (5 days, vertical).
+ *  - schedule: Sun→Sat of the anchor's week (7 days, vertical agenda).
  *  - day:      anchor only.
- *  - week:     Sun→Thu of the anchor's school week (5 columns side-by-side).
+ *  - week:     Sun→Sat of the anchor's week (7 columns side-by-side).
  *
  * Both schedule and week snap to Sunday so weeks always read as
- * separated units. Tapping prev/next steps a full week either way.
+ * separated units. Friday + Saturday are included because Gan events
+ * (parent days, Lag Baomer picnic, etc.) sometimes happen on Friday
+ * mornings and we don't want to hide them.
  */
 export function daysForView(view: CalView, anchor: Date | string = new Date()): Date[] {
   const a = typeof anchor === 'string' ? parseISO(anchor) : anchor;
   if (view === 'day') return [a];
-  // schedule + week → Sun..Thu of anchor's week
+  // schedule + week → Sun..Sat of anchor's week
   const sunday = weekStart(a);
-  return [0, 1, 2, 3, 4].map((i) => addDays(sunday, i));
+  return [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(sunday, i));
 }
 
 /** Step amount when user clicks prev/next, in days. */
