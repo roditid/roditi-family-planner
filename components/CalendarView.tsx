@@ -195,22 +195,17 @@ function ColumnsLayout({
 }
 
 function DayHeader({ d, count }: { d: Date; count: number }) {
-  // Use the same coral relative-when pill the schedule view uses
-  // (today / tomorrow render coral; further out stays muted) so the
-  // week-tab day labels match the schedule tab — no more green chip
-  // outlier for "today."
+  // Week tab is a tight 7-column grid — only "today" gets the coral
+  // pill. Tomorrow / this-week / next-week pills clutter the small
+  // header; the date number itself already conveys position in time.
   const today = isToday(d);
-  const rel = relativeDay(isoDay(d));
-  const chipClass = rel === 'today' || rel === 'tomorrow'
-    ? 'bg-coral-400/15 text-coral-600'
-    : 'bg-black/[0.05] text-ink-700/55';
   return (
     <div className="px-1 pt-1 flex items-baseline gap-2 flex-wrap">
       <div className="text-[11px] uppercase tracking-wider text-ink-700/55 font-semibold">{shortDay(d)}</div>
       <div className={`font-display text-xl leading-none ${today ? 'text-coral-600' : ''}`}>{dayNumber(d)}</div>
-      {rel !== 'past' && (
-        <span className={`text-[9px] uppercase tracking-[0.1em] font-bold px-1.5 py-0.5 rounded-full leading-none ${chipClass}`}>
-          {rel}
+      {today && (
+        <span className="text-[9px] uppercase tracking-[0.1em] font-bold px-1.5 py-0.5 rounded-full leading-none bg-coral-400/15 text-coral-600">
+          today
         </span>
       )}
       {count > 0 && <span className="ml-auto text-[11px] text-ink-700/45 tabular-nums">{count}</span>}
