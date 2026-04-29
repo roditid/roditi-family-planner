@@ -190,9 +190,9 @@ export default async function AdminOverview({ searchParams }: { searchParams: { 
             const today = isToday(d);
             return (
               <section key={iso}>
-                <h2 className={`font-display text-lg sm:text-xl mb-2 flex items-baseline gap-2 ${today ? 'text-sage-700' : ''}`}>
+                <h2 className={`font-display text-lg sm:text-xl mb-2 flex items-baseline gap-2 ${today ? 'text-coral-600' : ''}`}>
                   {prettyDay(d)}
-                  {today && <span className="chip bg-sage-500 text-cream-50 text-[10px] px-2 py-0.5">today</span>}
+                  {today && <span className="text-[10px] uppercase tracking-[0.1em] font-bold px-2 py-0.5 rounded-full bg-coral-400/15 text-coral-600 leading-none">today</span>}
                 </h2>
                 <div className="card divide-y divide-black/5">
                   {dSlots.map((s) => {

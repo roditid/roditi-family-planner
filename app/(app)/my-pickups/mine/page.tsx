@@ -89,10 +89,10 @@ export default async function MyMinePage() {
             return (
               <section key={date}>
                 <div className="px-1 mb-2 flex items-baseline gap-3 flex-wrap">
-                  <h2 className={`font-display text-xl sm:text-2xl tracking-tight ${today ? 'text-sage-700' : ''}`}>
+                  <h2 className={`font-display text-xl sm:text-2xl tracking-tight ${today ? 'text-coral-600' : ''}`}>
                     {prettyDay(d)}
                   </h2>
-                  {today && <span className="chip bg-sage-500 text-cream-50 text-[10px] px-2 py-0.5 leading-none">today</span>}
+                  {today && <span className="text-[10px] uppercase tracking-[0.1em] font-bold px-2 py-0.5 rounded-full bg-coral-400/15 text-coral-600 leading-none">today</span>}
                   <span className="text-xs text-ink-700/45 ml-auto tabular-nums">
                     {todays.length} pickup{todays.length === 1 ? '' : 's'}
                   </span>
