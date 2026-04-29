@@ -57,18 +57,33 @@ export async function generateDefaultSlots(
   if (eligibleKids.length === 0) return { daysProcessed: 0, slotsCreated: 0 };
 
   // 2. Pull existing activity slots in range to figure out which kids already
-  //    have a trip that day (and so don't need a Gan→Home default).
+  //    have a trip that day (and so don't need a Gan→Home default). We
+  //    consider both the primary child AND any tag-along siblings on the
+  //    slot — e.g. Yali rides with Adam to 1st Grade Prep, so she's
+  //    already covered for the day and shouldn't get a separate Gan→Home.
+  //
+  //    We also track the EARLIEST pickup_time per kid per date — needed for
+  //    early-dismissal handling: an activity covers a kid only if it picks
+  //    them up at or before their effective dismissal. On May 5 Liam is
+  //    dismissed at 12:30 but Picnic Lag Baomer is at 16:15 — that activity
+  //    runs from Home, not the Gan, so it doesn't cover the 12:30→home leg.
   const { data: activitySlots } = await sb
     .from('pickup_slots')
-    .select('child_id, date')
+    .select('child_id, additional_child_ids, date, pickup_time')
     .eq('household_id', householdId)
     .not('activity_id', 'is', null)
     .gte('date', start)
     .lt('date', end);
-  const hasActivity = new Map<string, Set<string>>();
+  // date → child_id → earliest pickup_time (HH:MM:SS string)
+  const earliestActivityPickup = new Map<string, Map<string, string>>();
   for (const s of activitySlots ?? []) {
-    if (!hasActivity.has(s.date)) hasActivity.set(s.date, new Set());
-    hasActivity.get(s.date)!.add(s.child_id);
+    if (!earliestActivityPickup.has(s.date)) earliestActivityPickup.set(s.date, new Map());
+    const dayMap = earliestActivityPickup.get(s.date)!;
+    const ids = [s.child_id, ...((s.additional_child_ids ?? []) as string[])];
+    for (const id of ids) {
+      const prev = dayMap.get(id);
+      if (!prev || s.pickup_time < prev) dayMap.set(id, s.pickup_time);
+    }
   }
 
   // 2b. Pull daily_overrides — no_gan suppresses defaults, early_dismissal
@@ -144,19 +159,32 @@ export async function generateDefaultSlots(
     // by a helper, or just created this run), skip — don't double-up.
     if (datesWithDefault.has(date)) continue;
 
-    const withActivity = hasActivity.get(date) ?? new Set<string>();
+    const activityPickupByKid = earliestActivityPickup.get(date) ?? new Map<string, string>();
     const offToday = noGan.get(date) ?? new Set<string>();
     const dismissalToday = earlyDismissal.get(date);
+
+    // Decide which kids need a Gan→Home default today. A kid is "covered"
+    // by an existing activity slot only if that slot picks them up at or
+    // before their effective dismissal — i.e. it actually collects them
+    // from the Gan. An activity that starts hours after early-dismissal
+    // (e.g. 16:15 picnic on a 12:30-dismissal day) does NOT cover the
+    // dismissal-to-home leg.
     const goingHome = eligibleKids
-      // Skip kids whose Gan is closed today (no_gan override).
       .filter((k) => !offToday.has(k.id))
-      // Skip kids who already have an activity slot that day.
-      .filter((k) => !withActivity.has(k.id))
-      // Apply per-day early-dismissal time overrides (clone so we don't
-      // mutate the eligibleKids list in place across days).
       .map((k) => {
         const override = dismissalToday?.get(k.id);
         return override ? { ...k, gan_dismissal_time: override } : k;
+      })
+      .filter((k) => {
+        const earliest = activityPickupByKid.get(k.id);
+        const dismissal = k.gan_dismissal_time!;
+        // No activity that day → needs a default.
+        if (!earliest) return true;
+        // Activity collects at or before dismissal → covered.
+        if (earliest <= dismissal) return false;
+        // Activity is later than dismissal → kid needs a Gan→Home at
+        // dismissal time (the activity will pick them up from Home).
+        return true;
       })
       .sort(
         (a, b) =>
