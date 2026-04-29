@@ -6,18 +6,18 @@
 import type { HelperRank } from '@/lib/ranks';
 
 export function RankBadge({ rank, size = 'sm' }: { rank: HelperRank; size?: 'sm' | 'md' }) {
-  // Editorial inline label: Cormorant italic in muted sage with a single
-  // coral pin. Blends with the display headline ("Hi, Paula ♥") instead
-  // of fighting it as a dark UI pill. No card frame, no caps tracking —
-  // reads as a quiet subtitle that happens to mark the helper's tier.
+  // Editorial inline label: Cormorant italic in muted sage with the tier
+  // sticker and an underline. Blends with the display headline instead
+  // of fighting it as a dark UI pill. The emoji stays — it's the small
+  // reward — but renders as part of the editorial line, not a UI tile.
   const text = size === 'md' ? 'text-xl' : 'text-lg';
   return (
     <span
-      className={`inline-flex items-center gap-1.5 align-middle font-display italic text-sage-700/85 ${text} leading-none whitespace-nowrap`}
+      className={`inline-flex items-baseline gap-1.5 font-display italic text-sage-700/90 ${text} leading-none whitespace-nowrap`}
       title={`${rank.count} pickup${rank.count === 1 ? '' : 's'} completed`}
     >
-      <span aria-hidden className="w-1.5 h-1.5 rounded-full bg-coral-400 inline-block" />
-      <span>{rank.current.title}</span>
+      <span aria-hidden className="not-italic translate-y-[1px]">{rank.current.sticker}</span>
+      <span className="border-b border-sage-700/25">{rank.current.title}</span>
       {rank.count > 0 && (
         <span className="not-italic text-sage-700/45 tabular-nums text-[0.7em] tracking-wide font-medium">
           · {rank.count}

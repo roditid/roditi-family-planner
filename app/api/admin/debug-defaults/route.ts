@@ -107,6 +107,44 @@ export async function GET(req: NextRequest) {
       };
     });
 
+  // Also pull the raw calendar_events table for this date, so we can see
+  // what Google sent us and whether the early-dismissal title pattern was
+  // recognized. We probe the same regex the calendar import uses.
+  const dayStartUtc = new Date(date + 'T00:00:00Z');
+  const nextDayUtc = new Date(date + 'T00:00:00Z');
+  nextDayUtc.setUTCDate(nextDayUtc.getUTCDate() + 1);
+  const probeStart = new Date(date + 'T00:00:00Z');
+  probeStart.setUTCHours(probeStart.getUTCHours() - 12); // include all-day events that started "yesterday" in UTC
+  const { data: calEvents } = await sb
+    .from('calendar_events')
+    .select('id, title, start_at, end_at, location_text, description')
+    .eq('household_id', householdId)
+    .gte('start_at', probeStart.toISOString())
+    .lt('start_at', nextDayUtc.toISOString())
+    .order('start_at');
+
+  // Re-run the detection patterns from lib/google/calendar.ts so we can
+  // see what each title would parse as without re-syncing.
+  const childNames = (kids ?? []).map((k: any) => k.name);
+  function detect(title: string) {
+    const t = title.trim();
+    if (/prep\s*day\s*(for\s*)?tomorrow/i.test(t)) return { kind: 'prep_day' };
+    const noGan = t.match(/^([\w\s&+,]+?)\s*[-–—]\s*no\s*gan\s*$/i);
+    if (noGan) return { kind: 'no_gan', kids: noGan[1] };
+    const until = t.match(/^([\w\s&+,]+?)\s*[-–—]\s*gan\s*until\s*(\d{1,2})[:.](\d{2})/i);
+    if (until) return { kind: 'early_dismissal', kids: until[1], time: `${until[2]}:${until[3]}` };
+    const lastDay = t.match(/^([\w\s&+,]+?)\s*[-–—]\s*last\s*day\s*of\s*gan/i);
+    if (lastDay) return { kind: 'last_day_school', kids: lastDay[1] };
+    return null;
+  }
+
+  const calendarEventsWithDetection = (calEvents ?? []).map((e: any) => ({
+    id: e.id,
+    title: e.title,
+    start_at: e.start_at,
+    detected_as: detect(e.title ?? ''),
+  }));
+
   return NextResponse.json({
     date,
     household_id: householdId,
@@ -115,5 +153,6 @@ export async function GET(req: NextRequest) {
     activity_slots: activitySlots ?? [],
     auto_defaults_currently_in_db: autoDefaults ?? [],
     going_home_decision: goingHome,
+    calendar_events_seen: calendarEventsWithDetection,
   }, { status: 200 });
 }

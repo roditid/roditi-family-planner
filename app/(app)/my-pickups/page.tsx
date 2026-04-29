@@ -92,7 +92,10 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
                 fill="#E89070"
               />
             </svg>
-            <span className="self-center"><RankBadge rank={rank} /></span>
+            {/* Rank badge sits a full step away from the name, not crowded
+                against the heart. ml-4 → ~16px gap on top of the inline-flex
+                gap so it reads as a separate annotation. */}
+            <span className="self-center ml-4"><RankBadge rank={rank} /></span>
           </h1>
           <p className="text-ink-700/70 text-sm sm:text-base mt-0.5">
             {myCount === 0
