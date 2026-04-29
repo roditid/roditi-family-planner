@@ -89,7 +89,9 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
           </h1>
           <p className="text-ink-700/70 text-sm sm:text-base mt-0.5">
             {myCount === 0
-              ? `${openCount} pickup${openCount === 1 ? '' : 's'} need a helper this week. Tap any to claim.`
+              ? openCount === 0
+                ? 'Nothing needs a helper this week. Quiet stretch.'
+                : `${openCount} pickup${openCount === 1 ? '' : 's'} need a helper this week. Tap any to claim.`
               : `You're on ${myCount} pickup${myCount === 1 ? '' : 's'} this week.${openCount ? ` Plus ${openCount} still open.` : ''}`}
           </p>
         </div>

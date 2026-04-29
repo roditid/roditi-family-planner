@@ -218,34 +218,46 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
 
         const date = formatInTimeZone(startDate, tz, 'yyyy-MM-dd');
 
+        // NB: the unique index on daily_overrides uses coalesce(child_id, ...)
+        // which PostgREST's onConflict can't target by column names — so we
+        // replace upsert with explicit delete-by-key + insert. Without this,
+        // every early-dismissal write was silently no-op'd.
         if (special.kind === 'prep_day') {
-          // Single household-wide row; no child_id. The event description
-          // is the prep list — store as notes for the cron to pick up.
-          await sb.from('daily_overrides').upsert({
+          await sb.from('daily_overrides')
+            .delete()
+            .eq('household_id', householdId)
+            .is('child_id', null)
+            .eq('date', date)
+            .eq('kind', 'prep_day');
+          await sb.from('daily_overrides').insert({
             household_id: householdId,
             child_id: null,
             date,
             kind: 'prep_day',
             source_event_id: specialEventRow?.id ?? null,
             notes: ev.description ?? null,
-          }, { onConflict: 'household_id,child_id,date,kind', ignoreDuplicates: false } as any);
+          });
         } else if (special.kind === 'no_gan' || special.kind === 'last_day_school' || special.kind === 'early_dismissal') {
-          // One row per affected kid
           const kids = special.childIds.length
             ? (children ?? []).filter((c) => special.childIds.includes(c.name))
             : (children ?? []);
+          const overrideKind = special.kind === 'no_gan' ? 'no_gan' : special.kind;
           for (const kid of kids) {
-            await sb.from('daily_overrides').upsert({
+            await sb.from('daily_overrides')
+              .delete()
+              .eq('household_id', householdId)
+              .eq('child_id', kid.id)
+              .eq('date', date)
+              .eq('kind', overrideKind);
+            await sb.from('daily_overrides').insert({
               household_id: householdId,
               child_id: kid.id,
               date,
-              kind: special.kind === 'no_gan' ? 'no_gan' : special.kind,
+              kind: overrideKind,
               dismissal_time: special.dismissalTime ?? null,
               source_event_id: specialEventRow?.id ?? null,
               notes: ev.description ?? null,
-            }, { onConflict: 'household_id,child_id,date,kind', ignoreDuplicates: false } as any);
-            // Keep the in-memory map in sync so picnic-style events later in
-            // this same sync pass see the new early-dismissal time.
+            });
             if (special.kind === 'early_dismissal' && special.dismissalTime) {
               earlyDismissalByKidDate.set(`${kid.id}|${date}`, special.dismissalTime);
             }
