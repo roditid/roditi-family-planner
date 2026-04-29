@@ -15,12 +15,25 @@ export default async function AdminOverview({ searchParams }: { searchParams: { 
   const sb = supabaseServer();
   const anchor = searchParams.d ? parseISO(searchParams.d) : new Date();
 
-  // Rolling 7-day window
-  const days = daysForView('week', anchor);
+  // Rolling 7-day window — but anchored at TODAY, not the user's
+  // requested past date, so the dashboard never surfaces yesterday's
+  // pickups (Paula's complaint).
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const effectiveAnchor = anchor < todayStart ? new Date() : anchor;
+  const days = daysForView('week', effectiveAnchor);
   const startISO = format(days[0], 'yyyy-MM-dd');
   const endISO = format(addDays(days[days.length - 1], 1), 'yyyy-MM-dd');
 
-  const slots = await fetchSlots(sb, ctx.household!.id, startISO, endISO);
+  const allSlots = await fetchSlots(sb, ctx.household!.id, startISO, endISO);
+  // Drop slots whose pickup_time is more than 30 min ago. Same 30-min
+  // grace window as the helper schedule view.
+  const nowMs = Date.now();
+  const tz = ctx.household?.timezone ?? 'Asia/Jerusalem';
+  const slots = allSlots.filter((s) => {
+    const { fromZonedTime } = require('date-fns-tz') as typeof import('date-fns-tz');
+    const slotUtc = fromZonedTime(`${s.date}T${s.pickup_time}`, tz);
+    return slotUtc.getTime() > nowMs - 30 * 60 * 1000;
+  });
 
   // Calendar connection state — shape onboarding hint
   let calendarConnected = false;

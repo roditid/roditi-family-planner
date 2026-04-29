@@ -93,6 +93,8 @@ export async function generateDefaultSlots(
   }
 
   // 3. Wipe unclaimed auto-defaults so we can regenerate cleanly.
+  //    Claimed defaults are preserved — see step 4 for how we skip
+  //    re-creating them on dates where one already exists.
   await sb
     .from('pickup_slots')
     .delete()
@@ -101,6 +103,19 @@ export async function generateDefaultSlots(
     .eq('status', 'unclaimed')
     .gte('date', start)
     .lt('date', end);
+
+  // 3b. Build a set of dates that ALREADY have a claimed auto-default.
+  //     Without this guard, the generator was inserting a second default
+  //     on top of a claimed one — Paula saw two identical "Yali → Adam
+  //     → Home" cards for April 30 (one Tataia's, one orphan).
+  const { data: existing } = await sb
+    .from('pickup_slots')
+    .select('date')
+    .eq('household_id', householdId)
+    .eq('source', 'auto-default')
+    .gte('date', start)
+    .lt('date', end);
+  const datesWithDefault = new Set((existing ?? []).map((r: any) => r.date));
 
   // 3b. Also delete CLAIMED auto-defaults that conflict with a no_gan
   //     override — the Gan is closed, the trip can't happen, and leaving
@@ -124,6 +139,10 @@ export async function generateDefaultSlots(
     const dow = addDays(today, i).getDay(); // 0=Sun..6=Sat
     if (dow === 5 || dow === 6) continue;   // skip Fri/Sat (Israeli weekend)
     daysProcessed++;
+
+    // Idempotency: if a default already exists for this date (claimed
+    // by a helper, or just created this run), skip — don't double-up.
+    if (datesWithDefault.has(date)) continue;
 
     const withActivity = hasActivity.get(date) ?? new Set<string>();
     const offToday = noGan.get(date) ?? new Set<string>();

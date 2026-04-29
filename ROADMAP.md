@@ -116,19 +116,60 @@ the URL to match the label.
   `{ source: '/home', destination: '/my-pickups' }` so the URL displays
   /home but the same code runs.
 
+### 9. Admin password login
+**Why:** Magic-link is a friction point for admins who sign in often.
+Paula wants the option to set a password instead.
+
+**What to build:**
+- Supabase auth supports email + password out of the box. Add a "Sign
+  in with password" tab on `/login` next to the existing magic-link
+  flow.
+- Per-user setting: when admins first land, prompt them to set a
+  password (or skip and keep using magic links).
+
+### 10. Same-day reminder + stroller note (WhatsApp)
+**Why:** When a helper has a pickup that day, send them a same-day
+WhatsApp reminder. If Yali is in the trip, append the stroller line
+("Yali needs a stroller. Please check with Dani whether the stroller
+is at the Gan.") so they don't forget.
+
+**What to build:**
+- Currently `lib/notify.ts::renderReminder()` produces an email reminder
+  for the existing morning cron (07:30 IL). Add a same-day, helper-
+  specific WhatsApp variant.
+- Stroller branch: if `[slot.child, ...slot.additional_children]`
+  contains a kid named "Yali", append the stroller paragraph to the
+  message.
+- Channel: blocked on the Twilio decision (no automated WhatsApp
+  available today). Email path is straightforward to add now.
+
+### 11. Prep-day live ping to Liezel at event start
+**Why:** "Prep day for tomorrow" events (the Gan asks parents to send
+specific items the night before — costumes, food, etc.) need to reach
+Liezel right when she'd be packing the bags, not buried in an evening
+summary email she might miss.
+
+**What to build:**
+- Trigger: scheduled WhatsApp at the event's actual start time on the
+  kids' calendar (not a fixed clock time).
+- Scope: any event matching the existing "prep day for tomorrow"
+  detection in the calendar import.
+- Recipient: Liezel only — Paula already gets the 7-day-ahead pre-warn
+  + the evening cron summary.
+- Body: pull the event description verbatim (whatever Paula wrote into
+  the calendar — that's the canonical instruction list).
+- Channel: same Twilio dependency as items #3 and #10. Until that
+  lands, fall back to a tap-and-send WhatsApp link Paula can fire
+  manually from the daily summary.
+
 ## Decisions still open
 
 - **Notification channel** — currently email. Twilio SMS or Twilio WhatsApp
   on the table; Paula deciding. In the meantime, /admin/unassigned has a
   tap-and-send WhatsApp button for Liezel's summary.
-- **Stroller WhatsApp reminder to picker** — when a helper claims a Yali
-  pickup, also send/queue a WhatsApp message to the helper themselves
-  reminding them to ask Dani about the stroller. Today the in-app modal
-  already surfaces the stroller note + a tap-to-WhatsApp-Dani link, but
-  there's no automated outbound message to the helper. Same blocker as
-  the notification channel decision — once Twilio (or another channel)
-  is wired up we can fan-out a stroller reminder automatically on every
-  Yali claim.
+- **Stroller WhatsApp reminder to picker** — automated outbound message
+  to the helper on Yali pickups. Same Twilio blocker as the notification
+  channel decision.
 - **Pickup reminders to claimers** — fan-out a reminder to the helper
   who claimed a slot, either 24h before the pickup or the morning of
   (Paula deciding which window). Channel piggybacks on whatever we

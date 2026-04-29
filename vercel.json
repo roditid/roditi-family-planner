@@ -16,6 +16,10 @@
     {
       "path": "/api/cron/backpack?secret=${CRON_SECRET}",
       "schedule": "0 17 * * *"
+    },
+    {
+      "path": "/api/cron/sync-calendar?secret=${CRON_SECRET}",
+      "schedule": "0 */4 * * *"
     }
   ]
 }

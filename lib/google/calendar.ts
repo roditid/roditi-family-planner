@@ -239,16 +239,22 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
         raw: ev as any,
       }, { onConflict: 'calendar_id,google_event_id' }).select().single();
 
-      const match = await resolveEventMatch(sb, title, children ?? [], activities ?? []);
+      // Strip any "[Helper] " auto-claim prefix BEFORE matching + display.
+      // The prefix is purely a directive for the importer (it tells us
+      // who claimed the slot); the slot title itself should read
+      // "Soccer", not "[Vovo] Soccer".
+      const cleanTitle = title.replace(/^\s*\[[^\]]+\]\s*/, '');
+      const match = await resolveEventMatch(sb, cleanTitle, children ?? [], activities ?? []);
       if (!match) continue;
 
       const pickupTime = formatInTimeZone(start, tz, 'HH:mm:ss');
       const endTime = end ? formatInTimeZone(end, tz, 'HH:mm:ss') : null;
       const date = formatInTimeZone(start, tz, 'yyyy-MM-dd');
 
-      // Display title: prefer parsed activity name (e.g. "Ninja") over the raw
-      // calendar title ("Ninja - Adam") so the UI shows the cleaner version.
-      const displayTitle = match.activityTitle ?? title;
+      // Display title: prefer parsed activity name ("Soccer") over the
+      // cleaned calendar title ("Soccer - Liam"), so the UI shows the
+      // cleaner version.
+      const displayTitle = match.activityTitle ?? cleanTitle;
 
       // Slot model: pickup = child's Gan, via = activity location, dest = Home.
       // The helper picks the kid up from the Gan at dismissal time, walks to
@@ -306,6 +312,11 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
         prefixedHelperId = m?.user_id ?? null;
       }
 
+      // Tag-along siblings: any kids stored on activities.tag_along_child_ids
+      // ride the slot automatically. e.g. Yali always joins Adam's
+      // "1st Grade Prep". Empty array for ordinary activities.
+      const tagAlong = ((match.activity as any)?.tag_along_child_ids as string[] | null) ?? [];
+
       const { error } = await sb.from('pickup_slots').upsert({
         household_id: householdId,
         child_id: match.child.id,
@@ -325,6 +336,7 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
         destination_location_id: slotDestLoc,
         pickup_location_text: ev.location ?? null,  // preserve raw event location as fallback
         via_location_text: slotViaText,
+        additional_child_ids: tagAlong,
         notes: match.activity?.notes ?? null,
         pack_notes: pack_notes || null,
         parent_notes: parent_notes || null,

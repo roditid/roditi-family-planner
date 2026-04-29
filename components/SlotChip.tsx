@@ -100,7 +100,10 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
     ownership === 'mine'
       ? 'bg-sage-500 text-cream-50 border-sage-600 shadow-card'
       : ownership === 'taken'
-        ? 'bg-ink-900/[0.04] border-black/[0.06] text-ink-700/85'
+        // Visibly settled — much greyer than the cream surrounding page so
+        // the eye stops before reaching it. Photo gets desaturated a hair
+        // via grayscale-[0.15] to reinforce the "not for you" cue.
+        ? 'bg-ink-900/[0.08] border-ink-900/[0.08] text-ink-700/75 grayscale-[0.15]'
         : 'bg-cream-50 border-coral-400/40 text-ink-900 hover:border-coral-400/70 hover:shadow-card';
 
   async function doClaim() {

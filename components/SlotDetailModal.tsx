@@ -377,32 +377,18 @@ function ShareButtons({ slot, currentUserPhone, currentUserName }: {
     ? `https://wa.me/${phone}?text=${encodeURIComponent(summary)}`
     : `https://wa.me/?text=${encodeURIComponent(summary)}`;
 
-  function nativeShare(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (typeof navigator !== 'undefined' && (navigator as any).share) {
-      e.preventDefault();
-      (navigator as any).share({ title: 'Pickup details', text: summary }).catch(() => {});
-    }
-  }
-
+  // The native "Share / save" button used to live next to this — Paula
+  // dropped it because the WhatsApp deep link covers everyone's actual
+  // workflow.
   return (
-    <div className="grid grid-cols-2 gap-2">
-      <a
-        href={waHref}
-        target="_blank" rel="noreferrer"
-        onClick={(e) => e.stopPropagation()}
-        className="flex items-center justify-center gap-1.5 rounded-2xl bg-[#25D366] hover:bg-[#1ebe57] text-white py-3 text-sm font-semibold active:scale-[0.97] transition"
-      >
-        Send to my WhatsApp
-      </a>
-      <button
-        type="button"
-        onClick={nativeShare}
-        className="rounded-2xl bg-cream-200/60 hover:bg-cream-200 text-ink-900 py-3 text-sm font-semibold active:scale-[0.97] transition"
-      >
-        Share / save
-      </button>
-    </div>
+    <a
+      href={waHref}
+      target="_blank" rel="noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className="flex items-center justify-center gap-1.5 w-full rounded-2xl bg-[#25D366] hover:bg-[#1ebe57] text-white py-3 text-sm font-semibold active:scale-[0.97] transition"
+    >
+      Send to my WhatsApp
+    </a>
   );
 }
 
