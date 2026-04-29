@@ -13,7 +13,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-black/5 bg-cream-50/80 backdrop-blur sticky top-0 z-10">
         <div className="mx-auto max-w-7xl px-3 sm:px-5 h-14 flex items-center gap-2 justify-between">
-          <Link href={isAdmin ? '/admin' : '/my-pickups'} className="flex items-center gap-2.5">
+          <Link href={isAdmin ? '/admin' : '/home'} className="flex items-center gap-2.5">
             {/* Heart-with-R lockup — a small sage heart cradling a cream serif R. */}
             <svg viewBox="0 0 100 100" width="32" height="32" aria-hidden className="shrink-0">
               <path
@@ -31,7 +31,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </Link>
           <nav className="flex items-center gap-0.5 text-sm">
             {isAdmin && <NavLink href="/admin">Dashboard</NavLink>}
-            <NavLink href="/my-pickups">Home</NavLink>
+            <NavLink href="/home">Home</NavLink>
             <NavLink href="/my-pickups/mine">My pickups</NavLink>
           </nav>
         </div>

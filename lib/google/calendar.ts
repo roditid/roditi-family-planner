@@ -148,6 +148,27 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
   const include = (conn.include_keywords ?? []) as string[];
   const exclude = (conn.exclude_keywords ?? []) as string[];
 
+  // Pre-load early-dismissal overrides for this window. If an event starts
+  // AFTER the early-dismissal time on the same date for the same kid, the
+  // kid is already home — the helper should pick up from Home, not Gan.
+  // Keyed `${child_id}|${date}` → 'HH:MM:SS'.
+  const earlyDismissalByKidDate = new Map<string, string>();
+  {
+    const startISO = new Date().toISOString().slice(0, 10);
+    const endISO = formatInTimeZone(addDays(new Date(), days), tz, 'yyyy-MM-dd');
+    const { data: overrides } = await sb
+      .from('daily_overrides')
+      .select('child_id, date, dismissal_time, kind')
+      .eq('household_id', householdId)
+      .eq('kind', 'early_dismissal')
+      .gte('date', startISO)
+      .lte('date', endISO);
+    for (const o of overrides ?? []) {
+      if (!o.child_id || !o.dismissal_time) continue;
+      earlyDismissalByKidDate.set(`${o.child_id}|${o.date}`, o.dismissal_time);
+    }
+  }
+
   for (const calId of calIds.length ? calIds : ['primary']) {
     const res = await cal.events.list({
       calendarId: calId,
@@ -216,6 +237,11 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
               source_event_id: specialEventRow?.id ?? null,
               notes: ev.description ?? null,
             }, { onConflict: 'household_id,child_id,date,kind', ignoreDuplicates: false } as any);
+            // Keep the in-memory map in sync so picnic-style events later in
+            // this same sync pass see the new early-dismissal time.
+            if (special.kind === 'early_dismissal' && special.dismissalTime) {
+              earlyDismissalByKidDate.set(`${kid.id}|${date}`, special.dismissalTime);
+            }
           }
         }
         continue; // special events don't create pickup_slots
@@ -270,10 +296,24 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
       //     get to). Adam @ 16:30 dismissal + Ninja @ 16:30 → pickup 16:15.
       const childRecord = match.child as any;
       const ganDismissal = childRecord.gan_dismissal_time as string | null;
-      const slotPickupTime = (ganDismissal && pickupTime <= ganDismissal)
+
+      // Off-Gan flow: if there's an early-dismissal override for this kid
+      // on this date AND the activity starts AFTER the early dismissal
+      // time, the kid is already home — pickup origin is Home, not Gan.
+      // Example: May 5 — "Liam - gan until 12:30" early dismissal, then
+      // 16:00 Lag Baomer picnic. Helper collects Liam at home at ~15:45.
+      const earlyDismissal = earlyDismissalByKidDate.get(`${match.child.id}|${date}`) ?? null;
+      const isOffGan = !!(earlyDismissal && pickupTime > earlyDismissal);
+
+      const slotPickupTime = isOffGan
+        // From-home pickup: leave 15 min before the activity starts.
         ? subtractMinutes(pickupTime, 15)
-        : (ganDismissal ?? pickupTime);
-      const slotPickupLoc = childRecord.school_location_id ?? match.activity?.default_pickup_location_id ?? null;
+        : (ganDismissal && pickupTime <= ganDismissal)
+          ? subtractMinutes(pickupTime, 15)
+          : (ganDismissal ?? pickupTime);
+      const slotPickupLoc = isOffGan
+        ? (childRecord.home_location_id ?? null)
+        : (childRecord.school_location_id ?? match.activity?.default_pickup_location_id ?? null);
       const slotViaLoc = match.activity?.default_destination_location_id ?? null;
       // When the activity has no structured destination (one-off events like
       // a school picnic), fall back to the calendar event's free-text

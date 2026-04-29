@@ -95,38 +95,6 @@ cron). She'd have to manually refresh.
 - Fallback: shorten the cron polling interval from "manual" to every
   5–10 min while waiting for webhooks.
 
-### 7. Picnic / off-Gan activity flow (Home → Activity → Home)
-**Why:** A "Liam - Picnic Lag Baomer" event happens AFTER the Gan closes
-early. Helper picks Liam up at HOME (not Gan), takes him to picnic, then
-brings him back. Today's slot model assumes Gan→Activity→Home.
-
-**What to build:**
-- Detect when an event's start time is AFTER an existing `[Kid] - gan
-  until HH:MM` early-dismissal override on the same date.
-- For those events, set the slot's pickup_location to Home instead of
-  the kid's Gan. Activity location stays as via, destination Home.
-
-### 8. Cleaner URL: /home instead of /my-pickups
-**Why:** The "Home" header button takes you to /my-pickups. Paula expects
-the URL to match the label.
-
-**What to build:**
-- Either rename the route directory `app/(app)/my-pickups/` →
-  `app/(app)/home/` and update internal links, or add a Next.js rewrite:
-  `{ source: '/home', destination: '/my-pickups' }` so the URL displays
-  /home but the same code runs.
-
-### 9. Admin password login
-**Why:** Magic-link is a friction point for admins who sign in often.
-Paula wants the option to set a password instead.
-
-**What to build:**
-- Supabase auth supports email + password out of the box. Add a "Sign
-  in with password" tab on `/login` next to the existing magic-link
-  flow.
-- Per-user setting: when admins first land, prompt them to set a
-  password (or skip and keep using magic links).
-
 ### 10. Same-day reminder + stroller note (WhatsApp)
 **Why:** When a helper has a pickup that day, send them a same-day
 WhatsApp reminder. If Yali is in the trip, append the stroller line
@@ -179,6 +147,18 @@ summary email she might miss.
 
 ## Recently shipped (most recent first)
 
+- Off-Gan picnic flow — when an event starts AFTER an early-dismissal
+  override on the same date for the same kid, the slot's pickup is set to
+  Home instead of Gan. Covers the May 5 case (gan until 12:30 → 16:00
+  Lag Baomer picnic from home).
+- /home URL alias — header Home button now points at `/home`; route
+  rewrites to `/my-pickups`.
+- Password login on `/login` — magic-link / password tab toggle. "Email
+  me a reset link" sends a Supabase password-reset email; landing on
+  `/set-password` lets the user pick a new password.
+- Daily auto-sync of calendar (03:00 UTC) so calendar edits flow into
+  the site without pressing Sync now (Hobby plan caps at once-per-day;
+  webhook live sync still on the roadmap).
 - Roditi-kids calendar conventions: special title patterns `[Kid] - No gan`,
   `[Kid] - gan until HH:MM`, `Kids - No gan`, `A&L - No gan` (initials),
   `[Kid] - Last day of gan`, `prep day for tomorrow`. Stored as

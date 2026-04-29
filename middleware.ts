@@ -1,7 +1,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextRequest, NextResponse } from 'next/server';
 
-const PROTECTED = ['/my-pickups', '/pickups', '/admin'];
+const PROTECTED = ['/my-pickups', '/home', '/pickups', '/admin'];
 const DEMO_COOKIE = 'demo_user_id';
 
 export async function middleware(req: NextRequest) {
