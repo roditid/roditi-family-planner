@@ -113,7 +113,7 @@ export default async function AdminOverview({ searchParams }: { searchParams: { 
       {/* Header */}
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="font-display text-3xl sm:text-4xl">Hi, {firstName} 👋</h1>
+          <h1 className="font-display text-3xl sm:text-4xl">Hi, {firstName}</h1>
           <p className="text-ink-700/70 mt-1">
             {ctx.household!.name} ·{' '}
             {slots.length === 0

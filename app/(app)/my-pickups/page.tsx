@@ -83,19 +83,9 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
           ring
         />
         <div className="min-w-0">
-          <h1 className="font-display text-3xl sm:text-4xl tracking-tight inline-flex items-baseline gap-2 flex-wrap">
+          <h1 className="font-display text-3xl sm:text-4xl tracking-tight inline-flex items-baseline gap-3 flex-wrap">
             Hi, {firstName}
-            {/* Heart in coral — replaces the waving-hand emoji. */}
-            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden className="inline-block translate-y-[1px]">
-              <path
-                d="M12 21s-7.5-5-7.5-11.2A4.3 4.3 0 0 1 12 6.5a4.3 4.3 0 0 1 7.5 3.3C19.5 16 12 21 12 21Z"
-                fill="#E89070"
-              />
-            </svg>
-            {/* Rank badge sits a full step away from the name, not crowded
-                against the heart. ml-4 → ~16px gap on top of the inline-flex
-                gap so it reads as a separate annotation. */}
-            <span className="self-center ml-4"><RankBadge rank={rank} /></span>
+            <span className="self-center"><RankBadge rank={rank} /></span>
           </h1>
           <p className="text-ink-700/70 text-sm sm:text-base mt-0.5">
             {myCount === 0
