@@ -153,7 +153,6 @@ export default function SlotDetailModal({
               loc={via}
               byTime={slot.activity_start_time ?? null}
               endTime={slot.end_time ?? null}
-              activityTitle={slot.title}
             />
           )}
           <DetailLoc label={via || (slot.additional_children ?? []).length > 0 ? 'Then drop off at' : 'Drop off at'} loc={dest} />
@@ -456,12 +455,14 @@ function DetailLoc({ label, loc, byTime, endTime, activityTitle }: {
     // Strip trailing punctuation introduced by the sentence-split — door
     // code lines like "Door code 0852." should display without the dot.
     .map((line: string) => line.replace(/[\.\s]+$/, ''));
-  // Build a small time-badge string for the corner (e.g. "by 16:30" for a
-  // sibling Gan, or "Soccer 17:00 – 18:30" for an activity stop).
+  // Build a small time-badge string for the corner. For sibling Gan stops
+  // we show "by 16:30" (an arrival deadline). For the activity stop we
+  // show its time range ("16:30 – 17:15") — the activity name is already
+  // in the modal header, no need to repeat it here.
   let badge: string | null = null;
   if (byTime) {
-    badge = activityTitle
-      ? `${activityTitle} ${prettyTime(byTime)}${endTime ? ` – ${prettyTime(endTime)}` : ''}`
+    badge = activityTitle || endTime
+      ? `${prettyTime(byTime)}${endTime ? ` – ${prettyTime(endTime)}` : ''}`
       : `by ${prettyTime(byTime)}`;
   }
   return (

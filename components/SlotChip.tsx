@@ -395,8 +395,9 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
                 });
               }
               if (via) {
-                // Activity hours go on the via stop ("Drahi · Judo 16:30 – 17:15")
-                // when the calendar event has them.
+                // Activity hours go on the via stop ("Drahi · 16:30 – 17:15")
+                // when the calendar event has them. The activity name itself
+                // is already in the chip's title, so we don't repeat it here.
                 const aStart = slot.activity_start_time;
                 const aEnd = slot.end_time;
                 stops.push({
@@ -404,7 +405,7 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
                   loc: via,
                   byTime: aStart && aStart !== slot.pickup_time ? aStart : null,
                   endTime: aEnd && aEnd !== slot.pickup_time ? aEnd : null,
-                  activityLabel: aStart && aStart !== slot.pickup_time ? slot.title : null,
+                  activityLabel: null,
                 });
               }
               if (dest) stops.push({ label: 'to', loc: dest, byTime: null });

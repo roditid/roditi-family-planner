@@ -7,6 +7,8 @@ import { fetchSlots } from '@/lib/slots';
 import { defaultAnchor, type CalView, daysForView, endOfSchoolWeek, weekStart } from '@/lib/week';
 import CalendarView from '@/components/CalendarView';
 import HelperAvatar from '@/components/HelperAvatar';
+import { RankBadge } from '@/components/RankBadge';
+import { getHelperRank } from '@/lib/ranks';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,9 +41,10 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
   const weekStartISO = format(weekStart(new Date()), 'yyyy-MM-dd');
   const weekEndISO = format(addDays(endOfSchoolWeek(new Date()), 1), 'yyyy-MM-dd');
 
-  const [slots, weekSlots] = await Promise.all([
+  const [slots, weekSlots, rank] = await Promise.all([
     fetchSlots(sb, ctx.household!.id, startISO, endISO),
     fetchSlots(sb, ctx.household!.id, weekStartISO, weekEndISO),
+    getHelperRank(sb, ctx.household!.id, ctx.user.id),
   ]);
 
   // "This week" upcoming = today through Thursday, pickup_time hasn't
@@ -80,7 +83,7 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
           ring
         />
         <div className="min-w-0">
-          <h1 className="font-display text-3xl sm:text-4xl tracking-tight inline-flex items-baseline gap-2">
+          <h1 className="font-display text-3xl sm:text-4xl tracking-tight inline-flex items-baseline gap-2 flex-wrap">
             Hi, {firstName}
             {/* Heart in coral — replaces the waving-hand emoji. */}
             <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden className="inline-block translate-y-[1px]">
@@ -89,6 +92,7 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
                 fill="#E89070"
               />
             </svg>
+            <span className="self-center"><RankBadge rank={rank} /></span>
           </h1>
           <p className="text-ink-700/70 text-sm sm:text-base mt-0.5">
             {myCount === 0

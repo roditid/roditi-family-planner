@@ -14,6 +14,8 @@ import { fetchSlots } from '@/lib/slots';
 import { isoDay, isToday, prettyDay } from '@/lib/week';
 import HelperAvatar from '@/components/HelperAvatar';
 import SlotChip from '@/components/SlotChip';
+import { RankCard } from '@/components/RankBadge';
+import { getHelperRank } from '@/lib/ranks';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +26,10 @@ export default async function MyMinePage() {
   const today = new Date();
   const startISO = format(today, 'yyyy-MM-dd');
   const endISO = format(addDays(today, 42), 'yyyy-MM-dd');  // 6 weeks
-  const all = await fetchSlots(sb, ctx.household!.id, startISO, endISO);
+  const [all, rank] = await Promise.all([
+    fetchSlots(sb, ctx.household!.id, startISO, endISO),
+    getHelperRank(sb, ctx.household!.id, ctx.user.id),
+  ]);
 
   // Mine = every slot whose active assignment is to me, today or later.
   const mine = all
@@ -62,6 +67,10 @@ export default async function MyMinePage() {
           </p>
         </div>
       </header>
+
+      {/* Rank card — sits between the header and the schedule. Doubles as
+          a reason to come back: every claim nudges the bar forward. */}
+      <RankCard rank={rank} firstName={firstName} />
 
       {mine.length === 0 ? (
         <div className="card p-8 text-center mt-4">
