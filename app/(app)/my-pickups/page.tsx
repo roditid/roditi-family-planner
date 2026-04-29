@@ -9,6 +9,7 @@ import CalendarView from '@/components/CalendarView';
 import HelperAvatar from '@/components/HelperAvatar';
 import { RankBadge } from '@/components/RankBadge';
 import { getHelperRank } from '@/lib/ranks';
+import { fetchHelpers } from '@/lib/helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,10 +42,14 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
   const weekStartISO = format(weekStart(new Date()), 'yyyy-MM-dd');
   const weekEndISO = format(addDays(endOfSchoolWeek(new Date()), 1), 'yyyy-MM-dd');
 
-  const [slots, weekSlots, rank] = await Promise.all([
+  // Helpers list is only needed when the viewer is an admin (the modal
+  // renders the reassign dropdown gated on isAdmin). Skip the fetch
+  // otherwise so non-admins don't pay for it.
+  const [slots, weekSlots, rank, helpers] = await Promise.all([
     fetchSlots(sb, ctx.household!.id, startISO, endISO),
     fetchSlots(sb, ctx.household!.id, weekStartISO, weekEndISO),
     getHelperRank(sb, ctx.household!.id, ctx.user.id),
+    ctx.role === 'admin' ? fetchHelpers(sb, ctx.household!.id) : Promise.resolve([]),
   ]);
 
   // "This week" upcoming = today through Thursday, pickup_time hasn't
@@ -123,6 +128,7 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
         currentUserPhone={ctx.profile?.phone_number ?? null}
         currentUserName={ctx.profile?.full_name ?? null}
         isAdmin={ctx.role === 'admin'}
+        helpers={helpers}
         onlyMine={onlyMine}
       />
 

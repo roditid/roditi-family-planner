@@ -9,6 +9,7 @@ import { tellable } from '@/lib/phones';
 import ChildAvatar from './ChildAvatar';
 import HelperAvatar from './HelperAvatar';
 import { updateSlotNotesAction } from '@/app/_actions/admin';
+import AssignmentPicker from './AssignmentPicker';
 
 /**
  * Bottom-sheet (mobile) / centered dialog (desktop) showing the full slot
@@ -19,13 +20,14 @@ import { updateSlotNotesAction } from '@/app/_actions/admin';
  * card) so Paula can drop a one-off reminder onto any pickup at any time.
  */
 export default function SlotDetailModal({
-  slot, currentUserId, currentUserPhone, currentUserName, isAdmin, ownership, pending, claimedBy, err, onClose, onClaim,
+  slot, currentUserId, currentUserPhone, currentUserName, isAdmin, helpers, ownership, pending, claimedBy, err, onClose, onClaim,
 }: {
   slot: SlotView;
   currentUserId: string;
   currentUserPhone?: string | null;
   currentUserName?: string | null;
   isAdmin?: boolean;
+  helpers?: { id: string; full_name: string; helper_kind: string | null; role: string }[];
   ownership: 'mine' | 'taken' | 'open';
   pending: boolean;
   claimedBy: any;
@@ -171,6 +173,22 @@ export default function SlotDetailModal({
 
           {/* Notes (slot-level) — visible to everyone, editable by admins */}
           <SlotNoteCard slot={slot} canEdit={!!isAdmin} />
+
+          {/* Admin reassign control — present on every view (home, schedule,
+              week, mine) so Paula doesn't have to bounce to /admin to flip
+              an assignment. Hidden for non-admins. */}
+          {isAdmin && helpers && helpers.length > 0 && (
+            <div className="rounded-xl bg-cream-200/40 p-3.5">
+              <div className="text-[10px] uppercase tracking-wider text-ink-700/55 font-semibold mb-2">
+                Assign helper
+              </div>
+              <AssignmentPicker
+                slotId={slot.id}
+                currentUserId={slot.assignment?.assigned_to_user_id ?? null}
+                helpers={helpers}
+              />
+            </div>
+          )}
 
           {/* Status row — only show for 'taken' or 'open' ('mine' has the banner above) */}
           {ownership !== 'mine' && (

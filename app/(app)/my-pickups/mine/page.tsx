@@ -16,6 +16,7 @@ import HelperAvatar from '@/components/HelperAvatar';
 import SlotChip from '@/components/SlotChip';
 import { RankCard } from '@/components/RankBadge';
 import { getHelperRank } from '@/lib/ranks';
+import { fetchHelpers } from '@/lib/helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,9 +27,10 @@ export default async function MyMinePage() {
   const today = new Date();
   const startISO = format(today, 'yyyy-MM-dd');
   const endISO = format(addDays(today, 42), 'yyyy-MM-dd');  // 6 weeks
-  const [all, rank] = await Promise.all([
+  const [all, rank, helpers] = await Promise.all([
     fetchSlots(sb, ctx.household!.id, startISO, endISO),
     getHelperRank(sb, ctx.household!.id, ctx.user.id),
+    ctx.role === 'admin' ? fetchHelpers(sb, ctx.household!.id) : Promise.resolve([]),
   ]);
 
   // Mine = every slot whose active assignment is to me, today or later.
@@ -106,6 +108,7 @@ export default async function MyMinePage() {
                       currentUserPhone={ctx.profile?.phone_number ?? null}
                       currentUserName={ctx.profile?.full_name ?? null}
                       isAdmin={ctx.role === 'admin'}
+                      helpers={helpers}
                       density="roomy"
                       showUnclaim
                     />

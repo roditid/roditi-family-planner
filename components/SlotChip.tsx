@@ -22,6 +22,10 @@ interface Props {
   /** When true (e.g. on /my-pickups/mine), the chip shows a visible
    *  "Unclaim this pickup" button next to the "You're on it" pill. */
   showUnclaim?: boolean;
+  /** When provided + isAdmin, the modal shows an inline reassign
+   *  dropdown so admins can manage helpers from any view, not just
+   *  the /admin dashboard. */
+  helpers?: { id: string; full_name: string; helper_kind: string | null; role: string }[];
 }
 
 type ClaimState = 'mine' | 'taken' | 'open';
@@ -34,7 +38,7 @@ type ClaimState = 'mine' | 'taken' | 'open';
  * server call follows in the background; if it fails we revert and surface
  * a toast. No more 500ms spinner staring contests.
  */
-export default function SlotChip({ slot, currentUserId, currentUserPhone, currentUserName, isAdmin, density = 'roomy', showUnclaim = false }: Props) {
+export default function SlotChip({ slot, currentUserId, currentUserPhone, currentUserName, isAdmin, density = 'roomy', showUnclaim = false, helpers }: Props) {
   // Derive ownership from the active assignment as the source of truth,
   // not slot.status. The two can drift if a status update is denied
   // (RLS or transient failure) — the assignment row is what actually
@@ -139,6 +143,7 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
       currentUserPhone={currentUserPhone}
       currentUserName={currentUserName}
       isAdmin={isAdmin}
+      helpers={helpers}
       ownership={ownership} pending={pending}
       claimedBy={claimedBy} err={err}
       onClose={() => setOpen(false)}
