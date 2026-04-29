@@ -183,8 +183,16 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
 
     for (const ev of events) {
       const title = ev.summary ?? '(untitled)';
-      if (include.length && !include.some((k) => matches(title, k))) continue;
-      if (exclude.some((k) => matches(title, k))) continue;
+
+      // Special markers (no-gan, gan-until-HH:MM, prep-day, last-day) are
+      // control signals — they must bypass include/exclude keyword filters.
+      // Otherwise an "include: pickup" filter would silently drop a
+      // "Liam - gan until 12:30" early-dismissal marker.
+      const special = detectSpecialEvent(title, childNames);
+      if (!special) {
+        if (include.length && !include.some((k) => matches(title, k))) continue;
+        if (exclude.some((k) => matches(title, k))) continue;
+      }
 
       // All-day events have ev.start.date; timed events have ev.start.dateTime.
       // Special markers (no-gan, prep-day, last-day) often live as all-day.
@@ -193,7 +201,6 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
         ? new Date((ev.start?.date ?? '') + 'T00:00:00')
         : new Date(ev.start!.dateTime!);
 
-      const special = detectSpecialEvent(title, childNames);
       if (special) {
         eventsSeen++;
         // Persist the source event row so daily_overrides can reference it.

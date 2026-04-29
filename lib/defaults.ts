@@ -119,18 +119,26 @@ export async function generateDefaultSlots(
     .gte('date', start)
     .lt('date', end);
 
-  // 3b. Build a set of dates that ALREADY have a claimed auto-default.
-  //     Without this guard, the generator was inserting a second default
-  //     on top of a claimed one — Paula saw two identical "Yali → Adam
-  //     → Home" cards for April 30 (one Tataia's, one orphan).
+  // 3b. Build a per-date set of kids already covered by a claimed
+  //     auto-default. Step 3 deleted unclaimed ones, so what remains is
+  //     guaranteed to be claimed. We exclude these kids from the
+  //     candidate list below — but we DON'T skip the whole date, so a
+  //     claimed Liam-12:30 doesn't prevent Yali+Adam from getting their
+  //     own combined 16:00 trip on the same day.
   const { data: existing } = await sb
     .from('pickup_slots')
-    .select('date')
+    .select('date, child_id, additional_child_ids')
     .eq('household_id', householdId)
     .eq('source', 'auto-default')
     .gte('date', start)
     .lt('date', end);
-  const datesWithDefault = new Set((existing ?? []).map((r: any) => r.date));
+  const coveredByClaimed = new Map<string, Set<string>>();
+  for (const r of existing ?? []) {
+    if (!coveredByClaimed.has(r.date)) coveredByClaimed.set(r.date, new Set());
+    const set = coveredByClaimed.get(r.date)!;
+    set.add(r.child_id);
+    for (const id of (r.additional_child_ids ?? []) as string[]) set.add(id);
+  }
 
   // 3b. Also delete CLAIMED auto-defaults that conflict with a no_gan
   //     override — the Gan is closed, the trip can't happen, and leaving
@@ -155,13 +163,10 @@ export async function generateDefaultSlots(
     if (dow === 5 || dow === 6) continue;   // skip Fri/Sat (Israeli weekend)
     daysProcessed++;
 
-    // Idempotency: if a default already exists for this date (claimed
-    // by a helper, or just created this run), skip — don't double-up.
-    if (datesWithDefault.has(date)) continue;
-
     const activityPickupByKid = earliestActivityPickup.get(date) ?? new Map<string, string>();
     const offToday = noGan.get(date) ?? new Set<string>();
     const dismissalToday = earlyDismissal.get(date);
+    const claimedToday = coveredByClaimed.get(date) ?? new Set<string>();
 
     // Decide which kids need a Gan→Home default today. A kid is "covered"
     // by an existing activity slot only if that slot picks them up at or
@@ -169,63 +174,98 @@ export async function generateDefaultSlots(
     // from the Gan. An activity that starts hours after early-dismissal
     // (e.g. 16:15 picnic on a 12:30-dismissal day) does NOT cover the
     // dismissal-to-home leg.
-    const goingHome = eligibleKids
+    // Step A: pull eligible kids who need Gan→Home today. Also skip kids
+    // already covered by a CLAIMED auto-default — don't duplicate pickups
+    // someone has already volunteered for.
+    const candidates = eligibleKids
       .filter((k) => !offToday.has(k.id))
+      .filter((k) => !claimedToday.has(k.id))
       .map((k) => {
         const override = dismissalToday?.get(k.id);
-        return override ? { ...k, gan_dismissal_time: override } : k;
+        return {
+          ...k,
+          gan_dismissal_time: override ?? k.gan_dismissal_time,
+          isEarlyDismissal: !!override,
+        };
       })
       .filter((k) => {
         const earliest = activityPickupByKid.get(k.id);
         const dismissal = k.gan_dismissal_time!;
-        // No activity that day → needs a default.
         if (!earliest) return true;
-        // Activity collects at or before dismissal → covered.
         if (earliest <= dismissal) return false;
-        // Activity is later than dismissal → kid needs a Gan→Home at
-        // dismissal time (the activity will pick them up from Home).
         return true;
-      })
+      });
+    if (candidates.length === 0) continue;
+
+    // Step B: split early-dismissal kids OUT of the combined trip.
+    // They get solo Gan→Home slots at their override time — combining a
+    // 12:30 early dismissal with a sibling at 16:00 would mean either
+    // the early kid waits 4 hours at the Gan or the helper makes two
+    // trips on a single chip. Cleaner: one slot per pickup window.
+    const earlyKids = candidates.filter((k) => k.isEarlyDismissal);
+    const regularKids = candidates.filter((k) => !k.isEarlyDismissal)
       .sort(
         (a, b) =>
           (PROXIMITY_RANK[b.name] ?? 99) - (PROXIMITY_RANK[a.name] ?? 99)
       );
-    if (goingHome.length === 0) continue;
 
-    // Special case: when exactly 2 kids share a Gan→Home trip and one of
-    // them is Yali, she's always picked up first (her dismissal is 16:00,
-    // earliest of the three — picking her last would mean a long wait).
-    if (goingHome.length === 2) {
-      const yaliIdx = goingHome.findIndex((k) => k.name === 'Yali');
-      if (yaliIdx === 1) {
-        [goingHome[0], goingHome[1]] = [goingHome[1], goingHome[0]];
-      }
-    }
-
-    const primary = goingHome[0];
-    const additionalIds = goingHome.slice(1).map((k) => k.id);
-    const tripStart = primary.gan_dismissal_time!; // primary = first kid in route
     // Title is intentionally just the destination ("Home") — the kids' names
     // already appear on the chip via the photo stack and the small-caps kid
     // labels, so repeating them in the title would be noise.
     const title = 'Home';
 
-    const { error } = await sb.from('pickup_slots').insert({
-      household_id: householdId,
-      child_id: primary.id,
-      additional_child_ids: additionalIds,
-      activity_id: null,
-      source: 'auto-default',
-      title,
-      date,
-      pickup_time: tripStart,
-      end_time: null,
-      pickup_location_id: primary.school_location_id,
-      via_location_id: null,
-      destination_location_id: primary.home_location_id,
-      notes: null,
-    });
-    if (!error) slotsCreated++;
+    // Step B1: solo Gan→Home for each early-dismissal kid.
+    for (const kid of earlyKids) {
+      const { error } = await sb.from('pickup_slots').insert({
+        household_id: householdId,
+        child_id: kid.id,
+        additional_child_ids: [],
+        activity_id: null,
+        source: 'auto-default',
+        title,
+        date,
+        pickup_time: kid.gan_dismissal_time!,
+        end_time: null,
+        pickup_location_id: kid.school_location_id,
+        via_location_id: null,
+        destination_location_id: kid.home_location_id,
+        notes: null,
+      });
+      if (!error) slotsCreated++;
+    }
+
+    // Step B2: combined Gan→Home for the rest. Special case: when exactly
+    // 2 kids share the trip and one of them is Yali, she's always picked
+    // up first (her dismissal is 16:00, earliest of the three — picking
+    // her last would mean a long wait).
+    if (regularKids.length === 2) {
+      const yaliIdx = regularKids.findIndex((k) => k.name === 'Yali');
+      if (yaliIdx === 1) {
+        [regularKids[0], regularKids[1]] = [regularKids[1], regularKids[0]];
+      }
+    }
+
+    if (regularKids.length > 0) {
+      const primary = regularKids[0];
+      const additionalIds = regularKids.slice(1).map((k) => k.id);
+      const tripStart = primary.gan_dismissal_time!;
+      const { error } = await sb.from('pickup_slots').insert({
+        household_id: householdId,
+        child_id: primary.id,
+        additional_child_ids: additionalIds,
+        activity_id: null,
+        source: 'auto-default',
+        title,
+        date,
+        pickup_time: tripStart,
+        end_time: null,
+        pickup_location_id: primary.school_location_id,
+        via_location_id: null,
+        destination_location_id: primary.home_location_id,
+        notes: null,
+      });
+      if (!error) slotsCreated++;
+    }
   }
 
   return { daysProcessed, slotsCreated };

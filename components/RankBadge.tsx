@@ -6,14 +6,30 @@
 import type { HelperRank } from '@/lib/ranks';
 
 export function RankBadge({ rank, size = 'sm' }: { rank: HelperRank; size?: 'sm' | 'md' }) {
-  const cls =
-    size === 'md'
-      ? 'inline-flex items-center gap-1.5 rounded-full bg-coral-400/12 text-coral-700 px-3 py-1 text-sm font-medium'
-      : 'inline-flex items-center gap-1 rounded-full bg-coral-400/12 text-coral-700 px-2.5 py-0.5 text-xs font-medium';
+  // Refined badge: dark forest pill with cream type, a small coral pin
+  // holding the tier sticker, and the count rendered in lighter weight.
+  // Reads as a "tier card" — earned, not decorative.
+  const padY = size === 'md' ? 'py-1' : 'py-[3px]';
+  const padR = size === 'md' ? 'pr-2.5' : 'pr-2';
+  const text = size === 'md' ? 'text-[11px]' : 'text-[10px]';
+  const stickerBox = size === 'md' ? 'w-5 h-5 text-[11px]' : 'w-[18px] h-[18px] text-[10px]';
   return (
-    <span className={cls} title={`${rank.count} pickup${rank.count === 1 ? '' : 's'} completed`}>
-      <span aria-hidden>{rank.current.sticker}</span>
-      {rank.current.title}
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-md bg-ink-900 text-cream-50 pl-[3px] ${padR} ${padY} ${text} font-bold uppercase tracking-[0.14em] leading-none whitespace-nowrap`}
+      title={`${rank.count} pickup${rank.count === 1 ? '' : 's'} completed`}
+    >
+      <span
+        aria-hidden
+        className={`grid place-items-center ${stickerBox} rounded-[3px] bg-coral-400 leading-none`}
+      >
+        {rank.current.sticker}
+      </span>
+      <span>{rank.current.title}</span>
+      {rank.count > 0 && (
+        <span className="text-cream-50/55 tabular-nums normal-case font-semibold tracking-normal">
+          · {rank.count}
+        </span>
+      )}
     </span>
   );
 }

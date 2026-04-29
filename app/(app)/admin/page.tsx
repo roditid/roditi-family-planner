@@ -195,31 +195,41 @@ export default async function AdminOverview({ searchParams }: { searchParams: { 
                   {today && <span className="chip bg-sage-500 text-cream-50 text-[10px] px-2 py-0.5">today</span>}
                 </h2>
                 <div className="card divide-y divide-black/5">
-                  {dSlots.map((s) => (
-                    <div key={s.id} className="p-4 flex items-center gap-4 flex-wrap sm:flex-nowrap">
-                      <div className="w-14 text-right font-display text-xl tabular-nums shrink-0">{prettyTime(s.pickup_time)}</div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span
-                            className="text-xs font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
-                            style={{ background: `${s.child.color}22`, color: '#2a2a22' }}
-                          >
-                            {s.child.name}
-                          </span>
-                          <span className="font-medium">{s.title}</span>
+                  {dSlots.map((s) => {
+                    // Show every kid on the slot (primary + tag-along siblings).
+                    // Without this the dashboard hid Adam on Yali's 1st Grade
+                    // Prep row, since the dismissal-order rule made Yali the
+                    // slot's primary.
+                    const allKids = [s.child, ...(s.additional_children ?? [])];
+                    return (
+                      <div key={s.id} className="p-4 flex items-center gap-4 flex-wrap sm:flex-nowrap">
+                        <div className="w-14 text-right font-display text-xl tabular-nums shrink-0">{prettyTime(s.pickup_time)}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {allKids.map((kid: any) => (
+                              <span
+                                key={kid.id}
+                                className="text-xs font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                                style={{ background: `${kid.color}22`, color: '#2a2a22' }}
+                              >
+                                {kid.name}
+                              </span>
+                            ))}
+                            <span className="font-medium">{s.title}</span>
+                          </div>
+                          <div className="text-sm text-ink-700/70 truncate mt-0.5">
+                            {s.pickup_location?.label ?? s.pickup_location_text ?? <span className="text-coral-600">no pickup location</span>}
+                            {s.destination_location?.label && <span className="text-ink-700/50"> → {s.destination_location.label}</span>}
+                          </div>
                         </div>
-                        <div className="text-sm text-ink-700/70 truncate mt-0.5">
-                          {s.pickup_location?.label ?? s.pickup_location_text ?? <span className="text-coral-600">no pickup location</span>}
-                          {s.destination_location?.label && <span className="text-ink-700/50"> → {s.destination_location.label}</span>}
-                        </div>
+                        <AssignmentPicker
+                          slotId={s.id}
+                          currentUserId={s.assignment?.assigned_to_user_id ?? null}
+                          helpers={helpers}
+                        />
                       </div>
-                      <AssignmentPicker
-                        slotId={s.id}
-                        currentUserId={s.assignment?.assigned_to_user_id ?? null}
-                        helpers={helpers}
-                      />
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </section>
             );
