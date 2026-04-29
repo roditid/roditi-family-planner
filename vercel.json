@@ -19,7 +19,7 @@
     },
     {
       "path": "/api/cron/sync-calendar?secret=${CRON_SECRET}",
-      "schedule": "0 */4 * * *"
+      "schedule": "0 3 * * *"
     }
   ]
 }
