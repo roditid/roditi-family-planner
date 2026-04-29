@@ -237,31 +237,35 @@ export default async function AdminOverview({ searchParams }: { searchParams: { 
         </div>
       )}
 
-      {/* Recent activity */}
+      {/* Recent activity — intentionally muted. The schedule above is the
+          actionable part; this is just a "what changed lately" log. We
+          drop the card frame, shrink the type, and bleed the actor names
+          into the same opacity as everything else so it reads as a quiet
+          ledger, not another action list. */}
       {activity.length > 0 && (
-        <section>
+        <section className="pt-4 border-t border-black/5">
           <div className="flex items-baseline justify-between mb-2">
-            <h2 className="font-display text-lg">Recent activity</h2>
-            <span className="text-xs text-ink-700/50">last {activity.length}</span>
+            <h2 className="text-[11px] uppercase tracking-[0.14em] font-semibold text-ink-700/55">Recent activity</h2>
+            <span className="text-[10px] text-ink-700/40">last {activity.length}</span>
           </div>
-          <div className="card divide-y divide-black/5">
+          <ul className="space-y-1 text-xs text-ink-700/55">
             {activity.map((e, i) => (
-              <div key={i} className="p-3 flex items-center gap-3 text-sm">
-                <span className="chip bg-black/5 text-ink-800 text-[10px] uppercase tracking-wider min-w-[78px] justify-center">
+              <li key={i} className="flex items-baseline gap-2 truncate">
+                <span className="uppercase tracking-[0.1em] text-[10px] text-ink-700/40 min-w-[66px] shrink-0">
                   {e.kind}
                 </span>
                 <span className="flex-1 min-w-0 truncate">
-                  <b>{e.actor}</b>
-                  {e.subject && e.subject !== e.actor && <> → <b>{e.subject}</b></>}
+                  <span className="text-ink-700/70">{e.actor}</span>
+                  {e.subject && e.subject !== e.actor && <> → <span className="text-ink-700/70">{e.subject}</span></>}
                   {' · '}
-                  <span className="text-ink-700/70">{e.slotLabel}</span>
+                  <span>{e.slotLabel}</span>
                 </span>
-                <span className="text-xs text-ink-700/50 shrink-0">
+                <span className="text-[10px] text-ink-700/40 shrink-0 tabular-nums">
                   {formatDistanceToNow(new Date(e.created_at), { addSuffix: true })}
                 </span>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
       )}
 
