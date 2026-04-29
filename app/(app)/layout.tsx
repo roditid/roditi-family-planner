@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getSessionContext } from '@/lib/permissions';
-import NextPickupBanner from '@/components/NextPickupBanner';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getSessionContext();
@@ -36,11 +35,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </nav>
         </div>
       </header>
-      {/* "What's next" strip — appears under the header on helper-facing
-          pages. Suppressed on /admin/* since the dashboard already
-          surfaces all the upcoming-pickup detail and the banner is just
-          noise there. */}
-      <ConditionalBanner householdId={ctx.household.id} userId={ctx.user.id} isAdmin={isAdmin} />
       <main className="flex-1 mx-auto w-full max-w-7xl px-3 sm:px-5 py-4 md:py-8">{children}</main>
       <footer className="border-t border-black/5 py-5 mt-8">
         <div className="mx-auto max-w-7xl px-3 sm:px-5 flex items-center justify-between flex-wrap gap-2 text-xs">
@@ -69,10 +63,3 @@ function NavLink({ href, children }: { href: string; children: React.ReactNode }
   );
 }
 
-/** Wrapper that suppresses the next-pickup banner on /admin/* pages. */
-async function ConditionalBanner(props: { householdId: string; userId: string; isAdmin: boolean }) {
-  const { headers } = await import('next/headers');
-  const path = headers().get('x-pathname') ?? '';
-  if (path.startsWith('/admin')) return null;
-  return <NextPickupBanner {...props} />;
-}

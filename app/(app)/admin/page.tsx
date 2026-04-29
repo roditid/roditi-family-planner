@@ -7,6 +7,7 @@ import { allUsers, recentEvents, getUser, slotById, children as demoChildren } f
 import { fetchSlots } from '@/lib/slots';
 import { prettyDay, prettyTime, daysForView, isToday } from '@/lib/week';
 import AssignmentPicker from '@/components/AssignmentPicker';
+import AdminWeekNav from '@/components/AdminWeekNav';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,14 +16,16 @@ export default async function AdminOverview({ searchParams }: { searchParams: { 
   const sb = supabaseServer();
   const anchor = searchParams.d ? parseISO(searchParams.d) : new Date();
 
-  // Rolling 7-day window — but anchored at TODAY, not the user's
-  // requested past date, so the dashboard never surfaces yesterday's
-  // pickups (Paula's complaint).
+  // Anchored at the user-requested week (or this week by default). Past
+  // anchors are clamped to today so yesterday never appears in the view.
+  // Future weeks step in 7-day increments via the AdminWeekNav buttons.
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
   const effectiveAnchor = anchor < todayStart ? new Date() : anchor;
   const days = daysForView('week', effectiveAnchor);
   const startISO = format(days[0], 'yyyy-MM-dd');
   const endISO = format(addDays(days[days.length - 1], 1), 'yyyy-MM-dd');
+  const isThisWeek = effectiveAnchor < addDays(todayStart, 7) && effectiveAnchor >= todayStart;
+  const rangeLabel = `${format(days[0], 'MMM d')} – ${format(days[days.length - 1], 'MMM d')}`;
 
   const allSlots = await fetchSlots(sb, ctx.household!.id, startISO, endISO);
   // Drop slots whose pickup_time is more than 30 min ago. Same 30-min
@@ -113,7 +116,9 @@ export default async function AdminOverview({ searchParams }: { searchParams: { 
           <h1 className="font-display text-3xl sm:text-4xl">Hi, {firstName} 👋</h1>
           <p className="text-ink-700/70 mt-1">
             {ctx.household!.name} ·{' '}
-            {slots.length === 0 ? 'no pickups in the next 7 days' : `${slots.length} pickup${slots.length > 1 ? 's' : ''} in the next 7 days`}
+            {slots.length === 0
+              ? `no pickups ${isThisWeek ? 'this week' : 'this week of ' + rangeLabel}`
+              : `${slots.length} pickup${slots.length > 1 ? 's' : ''} ${isThisWeek ? 'this week' : rangeLabel}`}
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -127,6 +132,12 @@ export default async function AdminOverview({ searchParams }: { searchParams: { 
             <button className="btn-primary text-sm">↻ Sync calendar</button>
           </form>
         </div>
+      </div>
+
+      {/* Week step nav — Prev disabled on the current week so we never
+          surface yesterday's pickups, Next steps forward in 7-day units. */}
+      <div className="flex justify-center">
+        <AdminWeekNav anchor={effectiveAnchor} rangeLabel={rangeLabel} />
       </div>
 
       {/* Onboarding hint when no calendar connected */}

@@ -165,7 +165,9 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
              ${ownership === 'mine'
                ? 'bg-sage-500 text-cream-50 border-sage-600 shadow-card'
                : ownership === 'taken'
-                 ? 'bg-cream-50 border-black/[0.06] text-ink-900'
+                 // Match roomy view: visibly settled, greyer than the
+                 // surrounding cream so the eye stops before reaching it.
+                 ? 'bg-ink-900/[0.08] border-ink-900/[0.08] text-ink-700/75 grayscale-[0.15]'
                  : 'bg-cream-50 border-black/[0.06] text-ink-900 hover:border-coral-400/60 hover:shadow-card'}
              ${pending ? 'opacity-90' : ''}
              ${isPast ? 'opacity-60 grayscale-[0.4]' : ''}`
