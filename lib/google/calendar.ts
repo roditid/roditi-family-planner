@@ -282,19 +282,47 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
       // cleaner version.
       const displayTitle = match.activityTitle ?? cleanTitle;
 
-      // Slot model: pickup = child's Gan, via = activity location, dest = Home.
-      // The helper picks the kid up from the Gan at dismissal time, walks to
-      // the activity (the "via" stop), waits, then walks them home.
+      // Slot model: pickup = first-route kid's Gan, additional Gan stops for
+      // any tag-along siblings, then via = activity location, dest = Home.
+      //
+      // Route order: when tag-along kids ride along, sort the full pickup
+      // list (primary + tagalongs) by gan_dismissal_time so the helper
+      // collects in dismissal order. Yali (16:00) before Adam (16:15) — so
+      // the kid waits the least at the Gan.
       //
       // pickup_time logic:
-      //   • Prefer the kid's gan_dismissal_time so the helper isn't standing
-      //     at the Gan while the kid is still inside.
+      //   • Prefer the route-leader's gan_dismissal_time so the helper
+      //     isn't standing at the Gan while the kid is still inside.
       //   • EXCEPTION: when the activity starts at or before the dismissal
       //     time, the helper would be late if they collected at dismissal.
       //     Pull pickup back 15 min before activity start so there's transit
       //     time (Ganenets allow early pickup when there's an activity to
       //     get to). Adam @ 16:30 dismissal + Ninja @ 16:30 → pickup 16:15.
-      const childRecord = match.child as any;
+
+      // Tag-along siblings: any kids stored on activities.tag_along_child_ids
+      // ride the slot automatically. e.g. Yali always joins Adam's
+      // "1st Grade Prep". Empty array for ordinary activities.
+      const tagAlongIds = ((match.activity as any)?.tag_along_child_ids as string[] | null) ?? [];
+
+      // Order the route by dismissal time. Earliest-dismissed kid becomes
+      // the slot's primary (first stop / pickup_location). Activity
+      // ownership stays with match.child via activity_id, but slot.child_id
+      // tracks the route leader so the chip + modal read in route order.
+      let primaryChild: any = match.child;
+      let routeAdditionalIds: string[] = tagAlongIds;
+      if (tagAlongIds.length > 0) {
+        const allInTrip = [match.child.id, ...tagAlongIds];
+        const records = (children ?? []).filter((c) => allInTrip.includes(c.id));
+        const ordered = [...records].sort((a, b) => {
+          const at = a.gan_dismissal_time ?? '99:99:99';
+          const bt = b.gan_dismissal_time ?? '99:99:99';
+          return at < bt ? -1 : at > bt ? 1 : 0;
+        });
+        primaryChild = ordered[0];
+        routeAdditionalIds = ordered.slice(1).map((c) => c.id);
+      }
+
+      const childRecord = primaryChild as any;
       const ganDismissal = childRecord.gan_dismissal_time as string | null;
 
       // Off-Gan flow: if there's an early-dismissal override for this kid
@@ -302,7 +330,7 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
       // time, the kid is already home — pickup origin is Home, not Gan.
       // Example: May 5 — "Liam - gan until 12:30" early dismissal, then
       // 16:00 Lag Baomer picnic. Helper collects Liam at home at ~15:45.
-      const earlyDismissal = earlyDismissalByKidDate.get(`${match.child.id}|${date}`) ?? null;
+      const earlyDismissal = earlyDismissalByKidDate.get(`${primaryChild.id}|${date}`) ?? null;
       const isOffGan = !!(earlyDismissal && pickupTime > earlyDismissal);
 
       const slotPickupTime = isOffGan
@@ -352,14 +380,9 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
         prefixedHelperId = m?.user_id ?? null;
       }
 
-      // Tag-along siblings: any kids stored on activities.tag_along_child_ids
-      // ride the slot automatically. e.g. Yali always joins Adam's
-      // "1st Grade Prep". Empty array for ordinary activities.
-      const tagAlong = ((match.activity as any)?.tag_along_child_ids as string[] | null) ?? [];
-
       const { error } = await sb.from('pickup_slots').upsert({
         household_id: householdId,
-        child_id: match.child.id,
+        child_id: primaryChild.id,
         activity_id: match.activity?.id ?? null,
         source_event_id: eventRow!.id,
         source: 'calendar',
@@ -376,7 +399,7 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
         destination_location_id: slotDestLoc,
         pickup_location_text: ev.location ?? null,  // preserve raw event location as fallback
         via_location_text: slotViaText,
-        additional_child_ids: tagAlong,
+        additional_child_ids: routeAdditionalIds,
         notes: match.activity?.notes ?? null,
         pack_notes: pack_notes || null,
         parent_notes: parent_notes || null,
