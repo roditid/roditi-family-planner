@@ -336,16 +336,24 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
       // on this date AND the activity starts AFTER the early dismissal
       // time, the kid is already home — pickup origin is Home, not Gan.
       // Example: May 5 — "Liam - gan until 12:30" early dismissal, then
-      // 16:00 Lag Baomer picnic. Helper collects Liam at home at ~15:45.
+      // 16:00 Lag Baomer picnic. Helper collects Liam at home before the
+      // event.
       const earlyDismissal = earlyDismissalByKidDate.get(`${primaryChild.id}|${date}`) ?? null;
       const isOffGan = !!(earlyDismissal && pickupTime > earlyDismissal);
+      const fullPresence = isFullPresenceTitle(title);
 
-      const slotPickupTime = isOffGan
-        // From-home pickup: leave 15 min before the activity starts.
-        ? subtractMinutes(pickupTime, 15)
-        : (ganDismissal && pickupTime <= ganDismissal)
+      const slotPickupTime = fullPresence
+        // Full-presence events (Lag Baomer picnic, parents day, ceremonies):
+        // helper ATTENDS the whole event. pickup_time = event start, no
+        // 15-min pre-pull — they're not picking up to walk somewhere,
+        // they're meeting the family at the event.
+        ? pickupTime
+        : isOffGan
+          // From-home pickup: leave 15 min before the activity starts.
           ? subtractMinutes(pickupTime, 15)
-          : (ganDismissal ?? pickupTime);
+          : (ganDismissal && pickupTime <= ganDismissal)
+            ? subtractMinutes(pickupTime, 15)
+            : (ganDismissal ?? pickupTime);
       const slotPickupLoc = isOffGan
         ? (childRecord.home_location_id ?? null)
         : (childRecord.school_location_id ?? match.activity?.default_pickup_location_id ?? null);
