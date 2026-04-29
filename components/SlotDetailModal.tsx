@@ -449,17 +449,19 @@ function DetailLoc({ label, loc, byTime, endTime, activityTitle }: {
   const noteLines: string[] = (loc.notes ?? '')
     .split(/\n+|(?<=[\.\!])\s+/)
     .map((s: string) => s.trim())
+    // Strip trailing punctuation BEFORE filtering — the sentence-split
+    // leaves "Door code 0852." with the period; we also need clean lines
+    // for the descriptor-label filter below to match (otherwise "Soccer
+    // pickup." sneaks past with a trailing dot).
+    .map((line: string) => line.replace(/[\.\s]+$/, ''))
     .filter(Boolean)
     .filter((line: string) => !/^(open|dismiss(?:es)?|closes?|hours?)\b/i.test(line))
     // Drop descriptor labels like "Soccer pickup" / "Judo dropoff" /
     // "Football drop-off". These say what the location IS, but the
     // activity name is already in the modal header right above the
     // stop card — repeating it as a note is just noise.
-    .filter((line: string) => !/^[\w\s'’\-]+\s+(pick\s*up|drop\s*off|dropoff)$/i.test(line))
-    .map((line: string) => line.replace(/^(ganenet|trainer|coach|teacher|guide|instructor|nanny|contact)\s*:\s*/i, ''))
-    // Strip trailing punctuation introduced by the sentence-split — door
-    // code lines like "Door code 0852." should display without the dot.
-    .map((line: string) => line.replace(/[\.\s]+$/, ''));
+    .filter((line: string) => !/^[\w\s'’\-]+\s+(pick\s*up|drop[\s-]*off|dropoff)$/i.test(line))
+    .map((line: string) => line.replace(/^(ganenet|trainer|coach|teacher|guide|instructor|nanny|contact)\s*:\s*/i, ''));
   // Build a small time-badge string for the corner. For sibling Gan stops
   // we show "by 16:30" (an arrival deadline). For the activity stop we
   // show its time range ("16:30 – 17:15") — the activity name is already
