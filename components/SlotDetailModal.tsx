@@ -451,6 +451,11 @@ function DetailLoc({ label, loc, byTime, endTime, activityTitle }: {
     .map((s: string) => s.trim())
     .filter(Boolean)
     .filter((line: string) => !/^(open|dismiss(?:es)?|closes?|hours?)\b/i.test(line))
+    // Drop descriptor labels like "Soccer pickup" / "Judo dropoff" /
+    // "Football drop-off". These say what the location IS, but the
+    // activity name is already in the modal header right above the
+    // stop card — repeating it as a note is just noise.
+    .filter((line: string) => !/^[\w\s'’\-]+\s+(pick\s*up|drop\s*off|dropoff)$/i.test(line))
     .map((line: string) => line.replace(/^(ganenet|trainer|coach|teacher|guide|instructor|nanny|contact)\s*:\s*/i, ''))
     // Strip trailing punctuation introduced by the sentence-split — door
     // code lines like "Door code 0852." should display without the dot.
