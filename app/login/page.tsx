@@ -9,8 +9,6 @@ import { supabaseBrowser } from '@/lib/supabase/client';
 // Cloud OAuth client. Until then we hide the button — clicking it returns 400.
 const GOOGLE_ENABLED = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === 'true';
 
-type Mode = 'magic' | 'password';
-
 export default function LoginPage() {
   // useSearchParams forces this page out of static prerender; Suspense
   // boundary keeps Next happy at build time.
@@ -24,10 +22,9 @@ export default function LoginPage() {
 function LoginContent() {
   const sb = supabaseBrowser();
   const params = useSearchParams();
-  const [mode, setMode] = useState<Mode>('magic');
   const [email, setEmail] = useState(params.get('email') ?? '');
   const [password, setPassword] = useState('');
-  const [sent, setSent] = useState<null | 'magic' | 'reset'>(null);
+  const [sentReset, setSentReset] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -39,19 +36,6 @@ function LoginContent() {
       options: { redirectTo: `${window.location.origin}/auth/callback?next=/home` },
     });
     if (error) { setError(error.message); setBusy(false); }
-  }
-
-  async function sendMagicLink(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    const { error } = await sb.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/home` },
-    });
-    if (error) setError(error.message);
-    else setSent('magic');
-    setBusy(false);
   }
 
   async function signInWithPassword(e: React.FormEvent) {
@@ -77,7 +61,7 @@ function LoginContent() {
       redirectTo: `${window.location.origin}/auth/callback?next=/set-password`,
     });
     if (error) setError(error.message);
-    else setSent('reset');
+    else setSentReset(true);
     setBusy(false);
   }
 
@@ -88,106 +72,75 @@ function LoginContent() {
         <h1 className="font-display text-3xl mb-2">Welcome back</h1>
         <p className="text-ink-700/70 mb-6">Sign in to see this week's pickups.</p>
 
-        {sent === 'magic' ? (
-          <div className="rounded-xl bg-sage-500/10 px-4 py-4 text-sage-700">
-            <div className="font-medium mb-1">Check your inbox 📬</div>
-            <div className="text-sm">
-              We sent a sign-in link to <b>{email}</b>. Tap it from your phone — it'll open the app already signed in.
-            </div>
-          </div>
-        ) : sent === 'reset' ? (
+        {sentReset ? (
           <div className="rounded-xl bg-sage-500/10 px-4 py-4 text-sage-700">
             <div className="font-medium mb-1">Reset email sent 📬</div>
             <div className="text-sm">
-              Tap the link in the email sent to <b>{email}</b>. It'll bring you to a page where you can set a new password.
+              Tap the link in the email sent to <b>{email}</b>. It'll bring you to a page where you can set a password.
             </div>
           </div>
         ) : (
-          <>
-            {/* Mode toggle */}
-            <div className="flex bg-black/[0.04] rounded-xl p-1 mb-5 text-sm">
+          <form onSubmit={signInWithPassword} className="space-y-3">
+            <label className="block">
+              <span className="label mb-1.5 block">Your email</span>
+              <input
+                type="email"
+                required
+                autoComplete="email"
+                inputMode="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="input text-base"
+              />
+            </label>
+
+            <label className="block">
+              <span className="label mb-1.5 block">Password</span>
+              <input
+                type="password"
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="input text-base"
+              />
+            </label>
+
+            <button type="submit" disabled={busy || !email || !password} className="btn-primary w-full py-3.5">
+              {busy ? 'Signing in…' : 'Sign in'}
+            </button>
+            {error && <div className="text-sm text-coral-600">{error}</div>}
+
+            <div className="pt-1">
               <button
                 type="button"
-                onClick={() => { setMode('magic'); setError(null); }}
-                className={`flex-1 py-2 rounded-lg transition ${mode === 'magic' ? 'bg-cream-50 shadow-sm font-medium' : 'text-ink-700/70'}`}
+                onClick={sendResetEmail}
+                disabled={busy}
+                className="text-sm text-ink-700/60 hover:text-ink-900 underline underline-offset-2"
               >
-                Magic link
-              </button>
-              <button
-                type="button"
-                onClick={() => { setMode('password'); setError(null); }}
-                className={`flex-1 py-2 rounded-lg transition ${mode === 'password' ? 'bg-cream-50 shadow-sm font-medium' : 'text-ink-700/70'}`}
-              >
-                Password
+                Forgot password? Email me a reset link.
               </button>
             </div>
 
-            <form onSubmit={mode === 'magic' ? sendMagicLink : signInWithPassword} className="space-y-3">
-              <label className="block">
-                <span className="label mb-1.5 block">Your email</span>
-                <input
-                  type="email"
-                  required
-                  autoComplete="email"
-                  inputMode="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  className="input text-base"
-                />
-              </label>
-
-              {mode === 'password' && (
-                <label className="block">
-                  <span className="label mb-1.5 block">Password</span>
-                  <input
-                    type="password"
-                    required
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="input text-base"
-                  />
-                </label>
-              )}
-
-              <button type="submit" disabled={busy || !email || (mode === 'password' && !password)} className="btn-primary w-full py-3.5">
-                {busy
-                  ? (mode === 'magic' ? 'Sending…' : 'Signing in…')
-                  : (mode === 'magic' ? 'Email me a sign-in link' : 'Sign in')}
-              </button>
-              {error && <div className="text-sm text-coral-600">{error}</div>}
-
-              {mode === 'password' && (
-                <button
-                  type="button"
-                  onClick={sendResetEmail}
-                  disabled={busy}
-                  className="text-sm text-ink-700/60 hover:text-ink-900 underline underline-offset-2"
-                >
-                  Forgot or never set a password? Email me a reset link
+            {GOOGLE_ENABLED && (
+              <>
+                <div className="flex items-center gap-3 my-5">
+                  <div className="flex-1 h-px bg-black/10" />
+                  <span className="text-xs uppercase tracking-wider text-ink-700/50">or</span>
+                  <div className="flex-1 h-px bg-black/10" />
+                </div>
+                <button type="button" onClick={signInGoogle} disabled={busy} className="btn-soft w-full py-3">
+                  <GoogleLogo /> Continue with Google
                 </button>
-              )}
-
-              {GOOGLE_ENABLED && (
-                <>
-                  <div className="flex items-center gap-3 my-5">
-                    <div className="flex-1 h-px bg-black/10" />
-                    <span className="text-xs uppercase tracking-wider text-ink-700/50">or</span>
-                    <div className="flex-1 h-px bg-black/10" />
-                  </div>
-                  <button type="button" onClick={signInGoogle} disabled={busy} className="btn-soft w-full py-3">
-                    <GoogleLogo /> Continue with Google
-                  </button>
-                </>
-              )}
-            </form>
-          </>
+              </>
+            )}
+          </form>
         )}
 
         <p className="text-xs text-ink-700/50 mt-7 leading-relaxed">
-          Once you sign in on this device, you'll stay signed in. On iPhone, tap <b>Share</b> in Safari → <b>Add to Home Screen</b> for a one-tap icon.
+          First time? Tap <b>Forgot password</b> above — you'll get an email link to set one. Once you sign in on this device, you'll stay signed in. On iPhone, tap <b>Share</b> in Safari → <b>Add to Home Screen</b> for a one-tap icon.
         </p>
       </div>
     </main>
