@@ -69,11 +69,18 @@ export async function generateDefaultSlots(
   //    runs from Home, not the Gan, so it doesn't cover the 12:30→home leg.
   const { data: activitySlots } = await sb
     .from('pickup_slots')
-    .select('child_id, additional_child_ids, date, pickup_time')
+    .select('child_id, additional_child_ids, date, pickup_time, destination_location_id')
     .eq('household_id', householdId)
     .not('activity_id', 'is', null)
     .gte('date', start)
     .lt('date', end);
+  // Only activities that DROP THE KID AT HOME count as coverage for the
+  // Gan→Home default. A morning-from-home event that ends at the Gan
+  // (e.g. Judo Competition at 8:45 → drops Adam at his Gan after) does
+  // NOT cover the afternoon home trip — kid still needs Gan→Home later.
+  // Build kidId → home_location_id from kids list so we can match.
+  const homeByKid = new Map<string, string | null>();
+  for (const k of kids) homeByKid.set(k.id, k.home_location_id);
   // date → child_id → earliest pickup_time (HH:MM:SS string)
   const earliestActivityPickup = new Map<string, Map<string, string>>();
   for (const s of activitySlots ?? []) {
@@ -81,6 +88,10 @@ export async function generateDefaultSlots(
     const dayMap = earliestActivityPickup.get(s.date)!;
     const ids = [s.child_id, ...((s.additional_child_ids ?? []) as string[])];
     for (const id of ids) {
+      const home = homeByKid.get(id);
+      // Skip activities that don't end at this kid's home — they don't
+      // cover the home trip.
+      if (!home || s.destination_location_id !== home) continue;
       const prev = dayMap.get(id);
       if (!prev || s.pickup_time < prev) dayMap.set(id, s.pickup_time);
     }

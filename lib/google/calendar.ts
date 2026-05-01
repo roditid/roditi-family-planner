@@ -354,19 +354,31 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
       const isOffGan = !!(earlyDismissal && pickupTime > earlyDismissal);
       const fullPresence = isFullPresenceTitle(title);
 
+      // Morning-from-home flow: events that start in the morning (before
+      // the kid would normally be at the Gan) flip the trip — pickup at
+      // Home, drop off at the kid's Gan after the event. Example: May 5
+      // "Adam - Judo Competition" at 8:45. The kid still needs the regular
+      // afternoon Gan→Home, which is generated separately.
+      //   Heuristic: event start hour < 12 AND not detected as off-Gan
+      //   (which would be afternoon-from-home). If the activity has an
+      //   explicit default_pickup_location pointing to a non-school place,
+      //   we trust that instead.
+      const eventStartHour = parseInt(pickupTime.slice(0, 2), 10);
+      const isMorningFromHome = !isOffGan && !fullPresence && eventStartHour < 12;
+
       const slotPickupTime = fullPresence
         // Full-presence events (Lag Baomer picnic, parents day, ceremonies):
         // helper ATTENDS the whole event. pickup_time = event start, no
         // 15-min pre-pull — they're not picking up to walk somewhere,
         // they're meeting the family at the event.
         ? pickupTime
-        : isOffGan
+        : isOffGan || isMorningFromHome
           // From-home pickup: leave 15 min before the activity starts.
           ? subtractMinutes(pickupTime, 15)
           : (ganDismissal && pickupTime <= ganDismissal)
             ? subtractMinutes(pickupTime, 15)
             : (ganDismissal ?? pickupTime);
-      const slotPickupLoc = isOffGan
+      const slotPickupLoc = isOffGan || isMorningFromHome
         ? (childRecord.home_location_id ?? null)
         : (childRecord.school_location_id ?? match.activity?.default_pickup_location_id ?? null);
       const slotViaLoc = match.activity?.default_destination_location_id ?? null;
@@ -374,7 +386,11 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
       // a school picnic), fall back to the calendar event's free-text
       // location so the helper still sees where to go.
       const slotViaText = !slotViaLoc && ev.location ? ev.location : null;
-      const slotDestLoc = childRecord.home_location_id ?? null;
+      // Morning-from-home: drop off at the kid's Gan AFTER the event.
+      // Otherwise, drop off at home.
+      const slotDestLoc = isMorningFromHome
+        ? (childRecord.school_location_id ?? null)
+        : (childRecord.home_location_id ?? null);
 
       // Pull per-event one-offs out of the calendar description. Recognized
       // labels (case-insensitive, anywhere on a line):

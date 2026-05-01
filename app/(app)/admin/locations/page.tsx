@@ -71,6 +71,10 @@ export default async function LocationsAdmin() {
 }
 
 function LocationRow({ l }: { l: any }) {
+  // The actual server-side crash on this page was an onClick handler
+  // attached to the Map <a> inside a server component (Server Components
+  // can't take event handlers). We restructure: header summary has no
+  // interactive children; Map link lives in the expanded body.
   const href = mapsHref(l);
   return (
     <details className="card p-4 group" open={false}>
@@ -84,14 +88,9 @@ function LocationRow({ l }: { l: any }) {
           <div className="text-sm text-ink-700/70">{[l.street, l.city].filter(Boolean).join(', ') || '—'}</div>
           {l.notes && <div className="text-sm text-ink-700/60 italic">{l.notes}</div>}
         </div>
-        <div className="flex gap-1 items-center">
-          {href && (
-            <a href={href} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-sm text-sage-600 hover:underline px-2 py-1">
-              Map
-            </a>
-          )}
-          <span className="text-xs text-ink-700/40 px-2 py-1 group-open:hidden">edit ↓</span>
-          <span className="text-xs text-ink-700/40 px-2 py-1 hidden group-open:inline">close ↑</span>
+        <div className="text-xs text-ink-700/40 px-2 py-1 self-center">
+          <span className="group-open:hidden">edit ↓</span>
+          <span className="hidden group-open:inline">close ↑</span>
         </div>
       </summary>
 
@@ -120,11 +119,18 @@ function LocationRow({ l }: { l: any }) {
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="is_common" defaultChecked={!!l.is_common} /> Frequent place
         </label>
-        <div className="flex gap-2 justify-between">
-          <button className="btn-soft text-sm">Save</button>
+        <div className="flex gap-2 justify-between items-center">
+          <div className="flex gap-2 items-center">
+            <button className="btn-soft text-sm">Save</button>
+            {href && (
+              <a href={href} target="_blank" rel="noreferrer" className="text-sm text-sage-600 hover:underline px-2 py-1">
+                Open in Maps →
+              </a>
+            )}
+          </div>
           {/* Delete uses formAction on the same form — nesting <form>
-              inside <form> threw the server-side exception that broke
-              the whole tab. The hidden `id` input above is reused. */}
+              inside <form> is invalid HTML. The hidden `id` input above
+              is reused. */}
           <button
             type="submit"
             formAction={deleteLocationAction}
