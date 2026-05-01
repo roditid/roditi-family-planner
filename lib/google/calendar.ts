@@ -332,10 +332,15 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
       if (tagAlongIds.length > 0) {
         const allInTrip = [match.child.id, ...tagAlongIds];
         const records = (children ?? []).filter((c) => allInTrip.includes(c.id));
+        // Sort by dismissal ascending; Yali wins ties — she's always
+        // collected first when she's in a combined trip.
         const ordered = [...records].sort((a, b) => {
           const at = a.gan_dismissal_time ?? '99:99:99';
           const bt = b.gan_dismissal_time ?? '99:99:99';
-          return at < bt ? -1 : at > bt ? 1 : 0;
+          if (at !== bt) return at < bt ? -1 : 1;
+          if (a.name === 'Yali') return -1;
+          if (b.name === 'Yali') return 1;
+          return 0;
         });
         primaryChild = ordered[0];
         routeAdditionalIds = ordered.slice(1).map((c) => c.id);

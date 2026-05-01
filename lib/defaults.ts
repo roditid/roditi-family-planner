@@ -222,10 +222,15 @@ export async function generateDefaultSlots(
     //   Liam → solo (3.5h gap to next kid)
     //   Yali + Adam → combined at 15:45 / 16:00
     const GROUP_GAP_MIN = 30;
+    // Sort by effective dismissal ascending; Yali wins ties — she's the
+    // youngest and gets picked up first, full stop.
     const sortedByDismissal = [...candidates].sort((a, b) => {
       const at = a.gan_dismissal_time ?? '99:99:99';
       const bt = b.gan_dismissal_time ?? '99:99:99';
-      return at < bt ? -1 : at > bt ? 1 : 0;
+      if (at !== bt) return at < bt ? -1 : 1;
+      if (a.name === 'Yali') return -1;
+      if (b.name === 'Yali') return 1;
+      return 0;
     });
     const groups: typeof sortedByDismissal[] = [];
     for (const kid of sortedByDismissal) {
