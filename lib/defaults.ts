@@ -203,11 +203,15 @@ export async function generateDefaultSlots(
     // the early kid waits 4 hours at the Gan or the helper makes two
     // trips on a single chip. Cleaner: one slot per pickup window.
     const earlyKids = candidates.filter((k) => k.isEarlyDismissal);
+    // Regular Gan→Home: sort by dismissal time ASCENDING. Earliest-dismissed
+    // kid is the first stop on the route — Yali (16:00) before Adam (16:30).
+    // The helper collects each kid as they're released, then walks home.
     const regularKids = candidates.filter((k) => !k.isEarlyDismissal)
-      .sort(
-        (a, b) =>
-          (PROXIMITY_RANK[b.name] ?? 99) - (PROXIMITY_RANK[a.name] ?? 99)
-      );
+      .sort((a, b) => {
+        const at = a.gan_dismissal_time ?? '99:99:99';
+        const bt = b.gan_dismissal_time ?? '99:99:99';
+        return at < bt ? -1 : at > bt ? 1 : 0;
+      });
 
     // Title is intentionally just the destination ("Home") — the kids' names
     // already appear on the chip via the photo stack and the small-caps kid
@@ -234,21 +238,18 @@ export async function generateDefaultSlots(
       if (!error) slotsCreated++;
     }
 
-    // Step B2: combined Gan→Home for the rest. Special case: when exactly
-    // 2 kids share the trip and one of them is Yali, she's always picked
-    // up first (her dismissal is 16:00, earliest of the three — picking
-    // her last would mean a long wait).
-    if (regularKids.length === 2) {
-      const yaliIdx = regularKids.findIndex((k) => k.name === 'Yali');
-      if (yaliIdx === 1) {
-        [regularKids[0], regularKids[1]] = [regularKids[1], regularKids[0]];
-      }
-    }
-
     if (regularKids.length > 0) {
       const primary = regularKids[0];
       const additionalIds = regularKids.slice(1).map((k) => k.id);
-      const tripStart = primary.gan_dismissal_time!;
+      // Back-chain pickup times so the helper has 15 min walk time
+      // between each Gan. Last kid's pickup = their dismissal; each
+      // preceding kid is 15 min before the next. Two kids both at
+      // 16:00 → first kid 15:45, second kid 16:00.
+      const lastKid = regularKids[regularKids.length - 1];
+      const lastPickup = lastKid.gan_dismissal_time!;
+      const stopGapMin = 15;
+      const numKids = regularKids.length;
+      const tripStart = subtractMinutes(lastPickup, stopGapMin * (numKids - 1));
       const { error } = await sb.from('pickup_slots').insert({
         household_id: householdId,
         child_id: primary.id,
@@ -269,4 +270,14 @@ export async function generateDefaultSlots(
   }
 
   return { daysProcessed, slotsCreated };
+}
+
+/** Subtract `minutes` from an "HH:MM[:SS]" time. Returns "HH:MM:SS". */
+function subtractMinutes(t: string, minutes: number): string {
+  const [h, m] = t.split(':').map(Number);
+  let total = h * 60 + m - minutes;
+  if (total < 0) total = 0;
+  const h2 = Math.floor(total / 60);
+  const m2 = total % 60;
+  return `${String(h2).padStart(2, '0')}:${String(m2).padStart(2, '0')}:00`;
 }

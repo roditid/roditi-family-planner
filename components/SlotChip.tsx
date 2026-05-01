@@ -393,11 +393,18 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
               }
               for (const k of slot.additional_children ?? []) {
                 const sl = (k as any).school_location;
-                if (sl) stops.push({
-                  label: 'then',
-                  loc: sl,
-                  byTime: (k as any).gan_dismissal_time ?? null,
-                });
+                if (!sl) continue;
+                // For activity slots, the helper still needs to leave each
+                // Gan in time to walk to the activity. When activity start
+                // is at or before a kid's normal dismissal, pull pickup
+                // back 15 min so they're not late. Adam dismissed 16:30 +
+                // 1st Grade Prep at 16:30 → pickup at 16:15.
+                const kidDismissal = (k as any).gan_dismissal_time ?? null;
+                const aStart = slot.activity_start_time;
+                const byTime = kidDismissal && aStart && aStart <= kidDismissal
+                  ? subtract15Min(aStart)
+                  : kidDismissal;
+                stops.push({ label: 'then', loc: sl, byTime });
               }
               if (via) {
                 // Activity hours go on the via stop ("Drahi · 16:30 – 17:15")
@@ -499,6 +506,16 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
 function firstNameOf(name: string | null | undefined): string {
   if (!name) return 'Someone';
   return name.split(/[\s(]/)[0] || name;
+}
+
+/** Subtract 15 min from an "HH:MM[:SS]" string. Returns "HH:MM:SS". */
+function subtract15Min(t: string): string {
+  const [h, m] = t.split(':').map(Number);
+  let total = h * 60 + m - 15;
+  if (total < 0) total = 0;
+  const h2 = Math.floor(total / 60);
+  const m2 = total % 60;
+  return `${String(h2).padStart(2, '0')}:${String(m2).padStart(2, '0')}:00`;
 }
 
 function LocLine({ label, loc, mine, byTime, endTime, activityLabel }: {

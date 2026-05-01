@@ -141,14 +141,26 @@ export default function SlotDetailModal({
             loc={pickup}
             byTime={slot.pickup_time ?? null}
           />
-          {(slot.additional_children ?? []).map((kid: any) => kid.school_location && (
-            <DetailLoc
-              key={kid.id}
-              label={`Then pick up ${kid.name}`}
-              loc={kid.school_location}
-              byTime={kid.gan_dismissal_time ?? null}
-            />
-          ))}
+          {(slot.additional_children ?? []).map((kid: any) => {
+            if (!kid.school_location) return null;
+            // Pull the "by" time back 15 min when the activity starts at
+            // or before the kid's dismissal, so the helper isn't late
+            // (Ganenets allow early pickup when there's an activity).
+            // Adam dismissed 16:30 + 1st Grade Prep at 16:30 → 16:15.
+            const aStart = slot.activity_start_time;
+            const dismissal = kid.gan_dismissal_time ?? null;
+            const byTime = dismissal && aStart && aStart <= dismissal
+              ? subtract15(aStart)
+              : dismissal;
+            return (
+              <DetailLoc
+                key={kid.id}
+                label={`Then pick up ${kid.name}`}
+                loc={kid.school_location}
+                byTime={byTime}
+              />
+            );
+          })}
           {via && (
             <DetailLoc
               label="Then go to"
@@ -437,6 +449,16 @@ function StrollerNote() {
       </a>
     </div>
   );
+}
+
+/** Subtract 15 min from an "HH:MM[:SS]" string. Returns "HH:MM:SS". */
+function subtract15(t: string): string {
+  const [h, m] = t.split(':').map(Number);
+  let total = h * 60 + m - 15;
+  if (total < 0) total = 0;
+  const h2 = Math.floor(total / 60);
+  const m2 = total % 60;
+  return `${String(h2).padStart(2, '0')}:${String(m2).padStart(2, '0')}:00`;
 }
 
 function DetailLoc({ label, loc, byTime, endTime, activityTitle }: {

@@ -111,8 +111,27 @@ export default async function CalendarSettings({ searchParams }: { searchParams:
 
       <div className="card p-6 space-y-2 text-sm text-ink-700/80">
         <div className="font-medium text-ink-900">How this works</div>
-        <p>Events are pulled from Paula's calendar and matched to each child via the activity <b>keyword</b> you set under Children. If an event has no location, the activity's default pickup location is used.</p>
-        <p>Household administration (assignments, overrides, reminders) is shared by both Paula and Daniel — independent of who owns the calendar connection.</p>
+        <p>Events titled <code className="bg-black/[0.04] px-1 rounded">Activity - Kid</code> become activity slots
+        (e.g. <code className="bg-black/[0.04] px-1 rounded">Soccer - Liam</code>). The activity name + child are
+        parsed from the title; the location is the activity's default destination, falling back to the calendar
+        event's address.</p>
+        <p>Special title patterns are control signals, not pickups:
+          <code className="bg-black/[0.04] mx-1 px-1 rounded">[Kid] - No gan</code> (skip Gan→Home for that kid),
+          <code className="bg-black/[0.04] mx-1 px-1 rounded">[Kid] - gan until HH:MM</code> (early dismissal,
+          generates a separate Gan→Home at that time),
+          <code className="bg-black/[0.04] mx-1 px-1 rounded">[Kid] - Last day of gan</code> (school-activity
+          pre-warning), and <code className="bg-black/[0.04] mx-1 px-1 rounded">prep day for tomorrow</code>
+          (backpack reminder).</p>
+        <p>Prefix an event with <code className="bg-black/[0.04] px-1 rounded">[Helper] </code> in the calendar
+        to auto-claim that pickup for the named helper on the next sync. The website also writes the prefix
+        back to your calendar whenever someone claims, unclaims, or is reassigned.</p>
+        <p>Default Gan→Home trips are generated for every weekday a kid has no activity. Siblings going home
+        around the same time combine into one trip — Yali first (her dismissal is earliest), then Adam,
+        then Liam, then home. Early dismissals stay separate from regular Gan→Home (one helper can't cover
+        a 12:30 and a 16:00 in the same chip).</p>
+        <p>Calendar sync is <b>daily at 03:00 UTC</b>. Click <b>Sync now</b> to refresh sooner. Household
+        admin (assignments, overrides, reminders) is shared by Paula and Daniel — independent of who owns
+        the calendar connection.</p>
       </div>
     </div>
   );

@@ -25,8 +25,28 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
   // daysForView() snaps the anchor to the week's Sunday automatically.
   const requestedAnchor = searchParams.d ? parseISO(searchParams.d) : new Date();
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-  const anchor = requestedAnchor < todayStart ? new Date() : requestedAnchor;
+  let anchor = requestedAnchor < todayStart ? new Date() : requestedAnchor;
   const onlyMine = searchParams.only === 'mine';
+
+  // Auto-advance: when the user didn't pin a specific week (?d= absent)
+  // and this week's pickups are all in the past, jump the anchor to
+  // next week. Avoids the empty / all-grayed-out landing state once
+  // the parents have completed the week's schedule.
+  if (!searchParams.d) {
+    const tzCheck = ctx.household?.timezone ?? 'Asia/Jerusalem';
+    const thisWeekDays = daysForView(view, anchor);
+    const thisWeekStart = format(thisWeekDays[0], 'yyyy-MM-dd');
+    const thisWeekEnd = format(addDays(thisWeekDays[thisWeekDays.length - 1], 1), 'yyyy-MM-dd');
+    const probeSlots = await fetchSlots(sb, ctx.household!.id, thisWeekStart, thisWeekEnd);
+    const nowMs = Date.now();
+    const stillUpcoming = probeSlots.some((s) => {
+      const slotUtc = fromZonedTime(`${s.date}T${s.pickup_time}`, tzCheck);
+      return slotUtc.getTime() > nowMs - 30 * 60 * 1000;
+    });
+    if (probeSlots.length > 0 && !stillUpcoming) {
+      anchor = addDays(anchor, 7);
+    }
+  }
 
   const days = daysForView(view, anchor);
   const startISO = format(days[0], 'yyyy-MM-dd');

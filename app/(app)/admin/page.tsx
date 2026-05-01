@@ -20,7 +20,28 @@ export default async function AdminOverview({ searchParams }: { searchParams: { 
   // anchors are clamped to today so yesterday never appears in the view.
   // Future weeks step in 7-day increments via the AdminWeekNav buttons.
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-  const effectiveAnchor = anchor < todayStart ? new Date() : anchor;
+  let effectiveAnchor = anchor < todayStart ? new Date() : anchor;
+
+  // Auto-advance: when the admin didn't pin ?d= and this week is over
+  // (all slots in the past), jump to next week so they're not staring
+  // at an empty Sun..Thu.
+  if (!searchParams.d) {
+    const tzCheck = ctx.household?.timezone ?? 'Asia/Jerusalem';
+    const probeDays = daysForView('week', effectiveAnchor);
+    const probeStart = format(probeDays[0], 'yyyy-MM-dd');
+    const probeEnd = format(addDays(probeDays[probeDays.length - 1], 1), 'yyyy-MM-dd');
+    const probeSlots = await fetchSlots(sb, ctx.household!.id, probeStart, probeEnd);
+    const nowMs = Date.now();
+    const { fromZonedTime } = await import('date-fns-tz');
+    const stillUpcoming = probeSlots.some((s) => {
+      const slotUtc = fromZonedTime(`${s.date}T${s.pickup_time}`, tzCheck);
+      return slotUtc.getTime() > nowMs - 30 * 60 * 1000;
+    });
+    if (probeSlots.length > 0 && !stillUpcoming) {
+      effectiveAnchor = addDays(effectiveAnchor, 7);
+    }
+  }
+
   const days = daysForView('week', effectiveAnchor);
   const startISO = format(days[0], 'yyyy-MM-dd');
   const endISO = format(addDays(days[days.length - 1], 1), 'yyyy-MM-dd');
