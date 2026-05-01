@@ -252,11 +252,14 @@ export async function reassignSlotAction(formData: FormData) {
 // ----------------------------------------------------------------------
 export async function updateReminderSettingsAction(formData: FormData) {
   const ctx = await requireAdmin();
+  // cutoff_time was dropped from the UI — helpers can claim at any time
+  // now. We still write a default value so any DB column with NOT NULL
+  // doesn't reject the upsert; it's just no longer surfaced.
   const patch = {
     morning_send_time: String(formData.get('morning_send_time') ?? '07:30'),
     send_evening_before: formData.get('send_evening_before') === 'on',
     evening_send_time: String(formData.get('evening_send_time') ?? '20:00'),
-    cutoff_time: String(formData.get('cutoff_time') ?? '20:00'),
+    cutoff_time: '23:59',
     parent_fallback_alert: formData.get('parent_fallback_alert') === 'on',
     timezone: String(formData.get('timezone') ?? 'Asia/Jerusalem'),
   };

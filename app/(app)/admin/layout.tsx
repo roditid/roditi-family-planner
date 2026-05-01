@@ -2,8 +2,11 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getSessionContext } from '@/lib/permissions';
 
+// /admin (Overview) is no longer a tab — admins manage assignments
+// from /home now. The route still exists for compat; the tab list
+// surfaces only the settings hubs (calendar, children, locations,
+// helpers, reminders, invites).
 const TABS = [
-  { href: '/admin', label: 'Overview' },
   { href: '/admin/invites', label: 'Invites' },
   { href: '/admin/calendar', label: 'Calendar' },
   { href: '/admin/children', label: 'Children' },

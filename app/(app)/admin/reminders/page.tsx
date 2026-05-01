@@ -49,9 +49,6 @@ export default async function RemindersAdmin() {
               <option value="UTC">UTC</option>
             </select>
           </Field>
-          <Field label="Claim cutoff" hint="Helpers can claim until this time the night before.">
-            <input type="time" name="cutoff_time" defaultValue={(r.cutoff_time || '20:00').slice(0, 5)} className="input" />
-          </Field>
           <Field label="Evening-before time">
             <input type="time" name="evening_send_time" defaultValue={(r.evening_send_time || '20:00').slice(0, 5)} className="input" />
           </Field>
@@ -63,7 +60,7 @@ export default async function RemindersAdmin() {
           </label>
           <label className="flex items-center gap-3">
             <input type="checkbox" name="parent_fallback_alert" defaultChecked={!!r.parent_fallback_alert} className="h-4 w-4" />
-            <span>Email admins at cutoff if a pickup is still unassigned</span>
+            <span>Email admins if a pickup is still unassigned the morning of</span>
           </label>
         </div>
         <div className="flex justify-end">

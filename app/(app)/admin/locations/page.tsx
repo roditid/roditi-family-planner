@@ -122,21 +122,20 @@ function LocationRow({ l }: { l: any }) {
         </label>
         <div className="flex gap-2 justify-between">
           <button className="btn-soft text-sm">Save</button>
-          <DeleteForm id={l.id} />
+          {/* Delete uses formAction on the same form — nesting <form>
+              inside <form> threw the server-side exception that broke
+              the whole tab. The hidden `id` input above is reused. */}
+          <button
+            type="submit"
+            formAction={deleteLocationAction}
+            formNoValidate
+            className="text-sm text-ink-700/50 hover:text-coral-600 px-3 py-2"
+          >
+            Delete
+          </button>
         </div>
       </form>
     </details>
-  );
-}
-
-function DeleteForm({ id }: { id: string }) {
-  return (
-    <form action={deleteLocationAction} className="inline-flex">
-      <input type="hidden" name="id" value={id} />
-      <button className="text-sm text-ink-700/50 hover:text-coral-600 px-3 py-2" formNoValidate>
-        Delete
-      </button>
-    </form>
   );
 }
 
