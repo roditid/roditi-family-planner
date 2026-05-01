@@ -51,15 +51,26 @@ export async function GET(req: NextRequest) {
       .map((m: any) => m.profiles)
       .find((p: any) => p && (p.full_name ?? '').toLowerCase().startsWith('liezel'));
 
-    // ── 1. Backpack reminder
+    // ── 1. Backpack reminder — Paula's choice is WhatsApp, but automated
+    // outbound WhatsApp needs Twilio. Same pattern as prep-day: admins
+    // get an email with a tap-and-send wa.me button to forward to Liezel.
+    // No more crowding Liezel's inbox; she gets the WhatsApp she expects
+    // once Paula taps the button.
     const backpack = await buildBackpackReminder(sb, h.id);
     if (backpack) {
-      const targets = [
-        ...admins,
-        ...(liezel?.email && liezel?.email_enabled !== false ? [liezel] : []),
-      ];
-      for (const t of targets) {
-        const r = await emailProvider.send({ to: t.email, subject: backpack.subject, body: backpack.body });
+      const liezelPhone = (liezel?.phone_number ?? '').replace(/[^\d]/g, '');
+      const waHref = liezelPhone
+        ? `https://wa.me/${liezelPhone}?text=${encodeURIComponent(backpack.body)}`
+        : null;
+      const html = `<pre style="font:16px/1.5 system-ui">${escapeHtml(backpack.body)}</pre>` +
+        (waHref ? `<p style="font:14px/1.5 system-ui;margin-top:1.5em"><a href="${waHref}" style="display:inline-block;background:#25D366;color:#fff;padding:12px 18px;border-radius:12px;text-decoration:none;font-weight:600">Send to Liezel on WhatsApp →</a></p>` : '');
+      for (const a of admins) {
+        const r = await emailProvider.send({
+          to: a.email,
+          subject: backpack.subject,
+          body: backpack.body + (waHref ? `\n\nTap to send to Liezel on WhatsApp:\n${waHref}` : ''),
+          html,
+        });
         if (!r.error) householdResults.backpack_sent++;
       }
     }

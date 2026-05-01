@@ -320,8 +320,11 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
 
       // Tag-along siblings: any kids stored on activities.tag_along_child_ids
       // ride the slot automatically. e.g. Yali always joins Adam's
-      // "1st Grade Prep". Empty array for ordinary activities.
-      const tagAlongIds = ((match.activity as any)?.tag_along_child_ids as string[] | null) ?? [];
+      // "1st Grade Prep". Empty array for ordinary activities. For
+      // household events (birthdays, holidays), every kid rides along.
+      const tagAlongIds = match.isHouseholdEvent
+        ? (match.householdKidIds ?? [])
+        : (((match.activity as any)?.tag_along_child_ids as string[] | null) ?? []);
 
       // Order the route by dismissal time. Earliest-dismissed kid becomes
       // the slot's primary (first stop / pickup_location). Activity
@@ -369,13 +372,16 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
       //   explicit default_pickup_location pointing to a non-school place,
       //   we trust that instead.
       const eventStartHour = parseInt(pickupTime.slice(0, 2), 10);
-      const isMorningFromHome = !isOffGan && !fullPresence && eventStartHour < 12;
+      const isMorningFromHome = !isOffGan && !fullPresence && !match.isHouseholdEvent && eventStartHour < 12;
+      // Household events (birthdays, holidays) always run from home →
+      // event → home. They're never picked up at a Gan.
+      const isHouseholdFromHome = !!match.isHouseholdEvent;
 
-      const slotPickupTime = fullPresence
-        // Full-presence events (Lag Baomer picnic, parents day, ceremonies):
-        // helper ATTENDS the whole event. pickup_time = event start, no
-        // 15-min pre-pull — they're not picking up to walk somewhere,
-        // they're meeting the family at the event.
+      const slotPickupTime = fullPresence || isHouseholdFromHome
+        // Full-presence events + household events (Lag Baomer picnic,
+        // parents day, ceremonies, birthdays, holidays): helper ATTENDS
+        // the whole event. pickup_time = event start, no 15-min pre-pull
+        // — they're meeting the family at the event.
         ? pickupTime
         : isOffGan || isMorningFromHome
           // From-home pickup: leave 15 min before the activity starts.
@@ -383,16 +389,17 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
           : (ganDismissal && pickupTime <= ganDismissal)
             ? subtractMinutes(pickupTime, 15)
             : (ganDismissal ?? pickupTime);
-      const slotPickupLoc = isOffGan || isMorningFromHome
+      const slotPickupLoc = isOffGan || isMorningFromHome || isHouseholdFromHome
         ? (childRecord.home_location_id ?? null)
         : (childRecord.school_location_id ?? match.activity?.default_pickup_location_id ?? null);
       const slotViaLoc = match.activity?.default_destination_location_id ?? null;
       // When the activity has no structured destination (one-off events like
-      // a school picnic), fall back to the calendar event's free-text
-      // location so the helper still sees where to go.
+      // a school picnic, birthdays), fall back to the calendar event's
+      // free-text location so the helper still sees where to go.
       const slotViaText = !slotViaLoc && ev.location ? ev.location : null;
       // Morning-from-home: drop off at the kid's Gan AFTER the event.
-      // Otherwise, drop off at home.
+      // Otherwise (household events, regular activities, off-Gan): drop
+      // off at home.
       const slotDestLoc = isMorningFromHome
         ? (childRecord.school_location_id ?? null)
         : (childRecord.home_location_id ?? null);
@@ -597,11 +604,29 @@ function detectSpecialEvent(title: string, childNames: string[]): SpecialEventMa
 const FULL_PRESENCE_KEYWORDS = [
   'shavuot', 'lag baomer', 'lag ba\'omer', 'picnic', 'parents day',
   'yom hahorim', 'mesibat', 'celebration', 'ceremony', 'siyum',
+  'birthday', 'b-day', 'bday', 'party',
 ];
 
 function isFullPresenceTitle(title: string): boolean {
   const t = title.toLowerCase();
   return FULL_PRESENCE_KEYWORDS.some((kw) => t.includes(kw));
+}
+
+// Keywords that mark an event as a "household event" — birthday parties,
+// holidays, weekend celebrations, school festivals. Even when no specific
+// kid is named in the title, if any of these match we still create a slot
+// (with all kids attached) so the family doesn't lose the event.
+const HOUSEHOLD_EVENT_KEYWORDS = [
+  'birthday', 'b-day', 'bday', 'party', 'picnic', 'celebration',
+  'ceremony', 'siyum', 'mesibat', 'parents day', 'yom hahorim',
+  'shavuot', 'lag baomer', 'lag ba\'omer', 'rosh hashana', 'pesach',
+  'sukkot', 'purim', 'simchat torah', 'hanukkah', 'tu bishvat',
+  'family', 'holiday',
+];
+
+function isHouseholdEvent(title: string): boolean {
+  const t = title.toLowerCase();
+  return HOUSEHOLD_EVENT_KEYWORDS.some((kw) => t.includes(kw));
 }
 
 /**
@@ -637,6 +662,14 @@ interface EventMatch {
   child: { id: string; name: string; school_location_id: string | null; home_location_id: string | null };
   activity: any | null;
   activityTitle: string | null;
+  /** True for events that match no specific kid but ARE family events
+   *  (birthdays, holidays, school festivals). Pickup flow flips to
+   *  Home → Event → Home and all kids ride the slot. */
+  isHouseholdEvent?: boolean;
+  /** When isHouseholdEvent, the full list of kid ids on the slot (primary
+   *  + every additional child). The caller uses this for the slot's
+   *  additional_child_ids field. */
+  householdKidIds?: string[];
 }
 
 /**
@@ -693,6 +726,22 @@ async function resolveEventMatch(
   // Last resort: kid name appears anywhere in the title.
   const child = children.find((c) => matches(title, c.name));
   if (child) return { child, activity: null, activityTitle: title };
+
+  // Household event fallback: birthday party, holiday, school festival,
+  // etc. — no specific kid in the title, but it's clearly a family event
+  // off the kids' calendar. Attach ALL kids so the family sees it on
+  // every helper's view. Primary kid is the first child alphabetically
+  // (just for storage); the chip renders the kid stack.
+  if (isHouseholdEvent(title) && children.length > 0) {
+    const sorted = [...children].sort((a, b) => a.name.localeCompare(b.name));
+    return {
+      child: sorted[0],
+      activity: null,
+      activityTitle: title,
+      isHouseholdEvent: true,
+      householdKidIds: sorted.slice(1).map((c) => c.id),
+    };
+  }
 
   return null;
 }
