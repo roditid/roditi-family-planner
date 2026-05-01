@@ -213,53 +213,46 @@ export async function generateDefaultSlots(
     // 12:30 early dismissal with a sibling at 16:00 would mean either
     // the early kid waits 4 hours at the Gan or the helper makes two
     // trips on a single chip. Cleaner: one slot per pickup window.
-    const earlyKids = candidates.filter((k) => k.isEarlyDismissal);
-    // Regular Gan→Home: sort by dismissal time ASCENDING. Earliest-dismissed
-    // kid is the first stop on the route — Yali (16:00) before Adam (16:30).
-    // The helper collects each kid as they're released, then walks home.
-    const regularKids = candidates.filter((k) => !k.isEarlyDismissal)
-      .sort((a, b) => {
-        const at = a.gan_dismissal_time ?? '99:99:99';
-        const bt = b.gan_dismissal_time ?? '99:99:99';
-        return at < bt ? -1 : at > bt ? 1 : 0;
-      });
+    // Group all candidates by effective dismissal proximity. Kids whose
+    // adjacent dismissal times are within GROUP_GAP_MIN minutes share a
+    // combined Gan→Home trip; larger gaps split into separate slots.
+    //
+    // May 5 example with the new "Adam - gan until 16:00" override:
+    //   Liam 12:30 (early) | Yali 16:00 | Adam 16:00 (early)
+    //   Liam → solo (3.5h gap to next kid)
+    //   Yali + Adam → combined at 15:45 / 16:00
+    const GROUP_GAP_MIN = 30;
+    const sortedByDismissal = [...candidates].sort((a, b) => {
+      const at = a.gan_dismissal_time ?? '99:99:99';
+      const bt = b.gan_dismissal_time ?? '99:99:99';
+      return at < bt ? -1 : at > bt ? 1 : 0;
+    });
+    const groups: typeof sortedByDismissal[] = [];
+    for (const kid of sortedByDismissal) {
+      const last = groups[groups.length - 1]?.[groups[groups.length - 1].length - 1];
+      if (!last) { groups.push([kid]); continue; }
+      const lastDismissal = last.gan_dismissal_time!;
+      const thisDismissal = kid.gan_dismissal_time!;
+      const gap = minutesBetween(lastDismissal, thisDismissal);
+      if (gap <= GROUP_GAP_MIN) groups[groups.length - 1].push(kid);
+      else groups.push([kid]);
+    }
 
     // Title is intentionally just the destination ("Home") — the kids' names
     // already appear on the chip via the photo stack and the small-caps kid
     // labels, so repeating them in the title would be noise.
     const title = 'Home';
+    const stopGapMin = 15;
 
-    // Step B1: solo Gan→Home for each early-dismissal kid.
-    for (const kid of earlyKids) {
-      const { error } = await sb.from('pickup_slots').insert({
-        household_id: householdId,
-        child_id: kid.id,
-        additional_child_ids: [],
-        activity_id: null,
-        source: 'auto-default',
-        title,
-        date,
-        pickup_time: kid.gan_dismissal_time!,
-        end_time: null,
-        pickup_location_id: kid.school_location_id,
-        via_location_id: null,
-        destination_location_id: kid.home_location_id,
-        notes: null,
-      });
-      if (!error) slotsCreated++;
-    }
-
-    if (regularKids.length > 0) {
-      const primary = regularKids[0];
-      const additionalIds = regularKids.slice(1).map((k) => k.id);
+    for (const group of groups) {
+      const primary = group[0]; // earliest-dismissed in the group goes first
+      const additionalIds = group.slice(1).map((k) => k.id);
       // Back-chain pickup times so the helper has 15 min walk time
       // between each Gan. Last kid's pickup = their dismissal; each
-      // preceding kid is 15 min before the next. Two kids both at
-      // 16:00 → first kid 15:45, second kid 16:00.
-      const lastKid = regularKids[regularKids.length - 1];
+      // preceding kid is 15 min before the next.
+      const lastKid = group[group.length - 1];
       const lastPickup = lastKid.gan_dismissal_time!;
-      const stopGapMin = 15;
-      const numKids = regularKids.length;
+      const numKids = group.length;
       const tripStart = subtractMinutes(lastPickup, stopGapMin * (numKids - 1));
       const { error } = await sb.from('pickup_slots').insert({
         household_id: householdId,
@@ -291,4 +284,11 @@ function subtractMinutes(t: string, minutes: number): string {
   const h2 = Math.floor(total / 60);
   const m2 = total % 60;
   return `${String(h2).padStart(2, '0')}:${String(m2).padStart(2, '0')}:00`;
+}
+
+/** Absolute minutes between two "HH:MM[:SS]" strings. */
+function minutesBetween(a: string, b: string): number {
+  const [ah, am] = a.split(':').map(Number);
+  const [bh, bm] = b.split(':').map(Number);
+  return Math.abs((bh * 60 + bm) - (ah * 60 + am));
 }

@@ -4,15 +4,16 @@ import { getSessionContext } from '@/lib/permissions';
 
 // /admin (Overview) is no longer a tab — admins manage assignments
 // from /home now. The route still exists for compat; the tab list
-// surfaces only the settings hubs (calendar, children, locations,
-// helpers, reminders, invites).
+// surfaces only the settings hubs. Calendar is first (it's the
+// landing target when admins tap "Settings" in the top nav, and the
+// place they actually use day-to-day).
 const TABS = [
-  { href: '/admin/invites', label: 'Invites' },
   { href: '/admin/calendar', label: 'Calendar' },
   { href: '/admin/children', label: 'Children' },
   { href: '/admin/locations', label: 'Locations' },
   { href: '/admin/helpers', label: 'Helpers' },
   { href: '/admin/reminders', label: 'Reminders' },
+  { href: '/admin/invites', label: 'Invites' },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
