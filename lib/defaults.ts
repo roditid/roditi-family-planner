@@ -252,13 +252,22 @@ export async function generateDefaultSlots(
     for (const group of groups) {
       const primary = group[0]; // earliest-dismissed in the group goes first
       const additionalIds = group.slice(1).map((k) => k.id);
-      // Back-chain pickup times so the helper has 15 min walk time
-      // between each Gan. Last kid's pickup = their dismissal; each
-      // preceding kid is 15 min before the next.
-      const lastKid = group[group.length - 1];
-      const lastPickup = lastKid.gan_dismissal_time!;
-      const numKids = group.length;
-      const tripStart = subtractMinutes(lastPickup, stopGapMin * (numKids - 1));
+      // Each kid's pickup = min(their own dismissal, next_kid_pickup - 15).
+      // Last kid in the route: their dismissal. Previous kids only get
+      // pulled back when needed to make the next pickup on time —
+      // otherwise they're picked at their actual dismissal so they don't
+      // wait at the Gan for nothing.
+      //   Yali 16:00 + Adam 16:30 → Yali 16:00, Adam 16:30
+      //   Yali 16:00 + Adam 16:00 → Yali 15:45, Adam 16:00 (Yali pulled
+      //                              back so helper reaches Adam by 16:00)
+      const pickupTimes: string[] = new Array(group.length);
+      pickupTimes[group.length - 1] = group[group.length - 1].gan_dismissal_time!;
+      for (let i = group.length - 2; i >= 0; i--) {
+        const own = group[i].gan_dismissal_time!;
+        const constrained = subtractMinutes(pickupTimes[i + 1], stopGapMin);
+        pickupTimes[i] = own <= constrained ? own : constrained;
+      }
+      const tripStart = pickupTimes[0];
       const { error } = await sb.from('pickup_slots').insert({
         household_id: householdId,
         child_id: primary.id,
