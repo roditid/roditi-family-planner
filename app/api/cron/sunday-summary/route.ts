@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://roditi.ch';
+  const familyPwd = process.env.FAMILY_PASSWORD;
   const sb = supabaseAdmin();
   const { data: households } = await sb.from('households').select('id');
   const results: any[] = [];
@@ -46,10 +47,14 @@ export async function GET(req: NextRequest) {
 
     for (const a of admins) {
       const firstName = (a.full_name ?? '').split(' ')[0] || 'there';
+      const passwordBlock = familyPwd
+        ? `<p style="background:#fef3e7;border-left:3px solid #E89070;padding:10px 14px;margin:1.5em 0;font:14px/1.5 system-ui">Family password: <code style="background:#fff;padding:2px 6px;border-radius:4px">${escapeHtml(familyPwd)}</code></p>`
+        : '';
       const html = `<div style="font:15px/1.55 system-ui;color:#2a2a22">` +
         `<p>Good morning, ${escapeHtml(firstName)}.</p>` +
         `<p>${summary.unclaimedCount === 0 ? 'Every pickup this week has a helper — no sorting needed.' : `<b>${summary.unclaimedCount}</b> of ${summary.totalCount} pickup${summary.totalCount === 1 ? '' : 's'} still need a helper. Open the dashboard to assign:`}</p>` +
         `<p><a href="${baseUrl}/home" style="display:inline-block;background:#5C7A5F;color:#FBF6EC;padding:12px 18px;border-radius:12px;text-decoration:none;font-weight:600">Open ${baseUrl.replace(/^https?:\/\//, '')}/home →</a></p>` +
+        passwordBlock +
         `<pre style="background:#f6f3ec;padding:14px;border-radius:8px;font:14px/1.5 system-ui;white-space:pre-wrap;margin-top:1.5em">${escapeHtml(summary.body)}</pre>` +
         (waHref ? `<p style="margin-top:1.5em"><b>When you're done assigning, forward to Liezel:</b></p>` +
           `<p><a href="${waHref}" style="display:inline-block;background:#25D366;color:#fff;padding:12px 18px;border-radius:12px;text-decoration:none;font-weight:600">Send weekly summary to Liezel on WhatsApp →</a></p>` : '') +
@@ -58,7 +63,9 @@ export async function GET(req: NextRequest) {
         (summary.unclaimedCount === 0
           ? 'Every pickup this week has a helper — no sorting needed.'
           : `${summary.unclaimedCount} of ${summary.totalCount} pickups still need a helper.`) +
-        `\n\nOpen the dashboard: ${baseUrl}/home\n\n${summary.body}` +
+        `\n\nOpen the dashboard: ${baseUrl}/home` +
+        (familyPwd ? `\nFamily password: ${familyPwd}` : '') +
+        `\n\n${summary.body}` +
         (waHref ? `\n\n---\n\nWhen done, forward to Liezel on WhatsApp:\n${waHref}` : '');
       const r = await sendAndLog(sb, {
         household_id: h.id,

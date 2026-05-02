@@ -4,7 +4,7 @@ import { supabaseServer } from '@/lib/supabase/server';
 import { demoMode } from '@/lib/demo-session';
 import { allUsers } from '@/lib/demo-store';
 import CopyLink from '@/components/CopyLink';
-import { sendInvitesNowAction } from '@/app/_actions/invites';
+import { sendInvitesNowAction, sendSaturdayNowAction } from '@/app/_actions/invites';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,13 +41,27 @@ export default async function InvitesAdmin() {
         </p>
       </header>
 
-      <div className="card p-5 flex items-center gap-3 justify-between">
+      <div className="card p-5 flex items-center gap-3 justify-between flex-wrap">
         <div>
           <div className="font-medium">Send everyone their weekly link now</div>
-          <div className="text-sm text-ink-700/60">Useful right now, or after big schedule changes.</div>
+          <div className="text-sm text-ink-700/60">Grandparents only. Useful for ad-hoc resends.</div>
         </div>
         <form action={sendInvitesNowAction}>
-          <button className="btn-primary text-sm">Send now</button>
+          <button className="btn-soft text-sm">Send invites</button>
+        </form>
+      </div>
+
+      <div className="card p-5 flex items-center gap-3 justify-between flex-wrap bg-sage-500/5 border-sage-500/30">
+        <div>
+          <div className="font-medium">Fire today's Saturday roundup now</div>
+          <div className="text-sm text-ink-700/60">
+            Sends the grandparent invites <i>and</i> the admin "Helper roundup"
+            email (with the WhatsApp share-to-group button + family password).
+            Use this when the Saturday cron didn't fire because of a late deploy.
+          </div>
+        </div>
+        <form action={sendSaturdayNowAction}>
+          <button className="btn-primary text-sm">Fire Saturday flow</button>
         </form>
       </div>
 

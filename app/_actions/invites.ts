@@ -6,6 +6,8 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { demoMode } from '@/lib/demo-session';
 import { allUsers, DEMO } from '@/lib/demo-store';
 import { emailProvider } from '@/lib/notify';
+import { sendAndLog, logNotification } from '@/lib/notify-log';
+import { buildFullWeekSummary } from '@/lib/summaries';
 
 /**
  * Send everyone their personal link by email. Used by:
@@ -15,6 +17,18 @@ import { emailProvider } from '@/lib/notify';
 export async function sendInvitesNowAction() {
   const ctx = await requireAdmin();
   await sendInvitesForHousehold(ctx.household!.id);
+  revalidatePath('/admin/invites');
+}
+
+/**
+ * Manually fire the FULL Saturday flow right now: grandparent invites
+ * + admin "Helper roundup" email. Useful when a deploy lands after
+ * 10:00 IL on Saturday and the cron didn't pick up the new schedule.
+ */
+export async function sendSaturdayNowAction() {
+  const ctx = await requireAdmin();
+  await sendInvitesForHousehold(ctx.household!.id);
+  await sendAdminHelperRoundup(ctx.household!.id);
   revalidatePath('/admin/invites');
 }
 
@@ -53,31 +67,107 @@ export async function sendInvitesForHousehold(
   // Filter to the requested helper kinds
   helpers = helpers.filter((h) => kinds.includes(h.helper_kind ?? 'other'));
 
+  const familyPwd = process.env.FAMILY_PASSWORD;
+  const sb = demoMode() ? null : supabaseAdmin();
+
   const sent: { to: string; ok: boolean }[] = [];
   for (const h of helpers) {
     if (!h.email || !h.magic_token) continue;
     const url = `${baseUrl}/i/${h.magic_token}`;
     const subject = `${firstName(h.full_name)} — pickups for this week`;
-    const body = [
+    const lines = [
       `Hi ${firstName(h.full_name)},`,
       ``,
       `Here are next week's pickups. Tap your link to see what's on and claim any you can do:`,
       ``,
       url,
       ``,
-      `Whatever you don't claim, Paula and Liezel will pick up. Thanks for being there.`,
-      ``,
-      `— The Roditi family`,
-    ].join('\n');
-    const r = await emailProvider.send({ to: h.email, subject, body });
+    ];
+    if (familyPwd) {
+      lines.push(`When the page asks for the family password, enter:`);
+      lines.push(``);
+      lines.push(`    ${familyPwd}`);
+      lines.push(``);
+      lines.push(`(One password for the whole family — keeps the schedule out of casual reach.)`);
+      lines.push(``);
+    }
+    lines.push(`Whatever you don't claim, Paula and Liezel will pick up. Thanks for being there.`);
+    lines.push(``);
+    lines.push(`— The Roditi family`);
+    const body = lines.join('\n');
+    const r = sb
+      ? await sendAndLog(sb, { household_id: householdId, to: h.email, subject, body })
+      : await emailProvider.send({ to: h.email, subject, body });
     sent.push({ to: h.email, ok: !r.error });
 
-    if (!demoMode()) {
-      const sb = supabaseAdmin();
+    if (sb) {
       await sb.from('profiles').update({ last_invite_sent_at: new Date().toISOString() }).eq('id', h.id);
     }
   }
   return sent;
 }
 
+/**
+ * Saturday admin "Helper roundup" — same email the Saturday cron sends
+ * to admins, exposed as a function so a manual button can fire it too.
+ * Pulled out of the cron handler so /admin/invites can re-run it on
+ * demand (e.g. when a deploy lands after the cron's window).
+ */
+export async function sendAdminHelperRoundup(householdId: string) {
+  if (demoMode()) return { sent: 0 };
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://roditi.ch';
+  const familyPwd = process.env.FAMILY_PASSWORD;
+  const sb = supabaseAdmin();
+  const summary = await buildFullWeekSummary(sb, householdId);
+
+  const { data: members } = await sb
+    .from('household_members')
+    .select('role, profiles:user_id(id, full_name, email, email_enabled)')
+    .eq('household_id', householdId)
+    .eq('role', 'admin');
+  const admins = (members ?? [])
+    .map((m: any) => m.profiles)
+    .filter((p: any) => p && p.email && p.email_enabled !== false);
+  if (admins.length === 0) return { sent: 0 };
+
+  const groupMessage =
+    `Hi family ❤️\n\n` +
+    `This week's pickups are up. ${summary.unclaimedCount} of ${summary.totalCount} still need a helper.\n\n` +
+    `Check your email for your personal link, or open the schedule at ${baseUrl}.\n\n` +
+    (familyPwd ? `Family password: ${familyPwd}\n\n` : '') +
+    `Try to claim what fits your week by tonight 🙏`;
+  const waHref = `https://wa.me/?text=${encodeURIComponent(groupMessage)}`;
+
+  const subject = `Saturday roundup — ${summary.unclaimedCount} pickup${summary.unclaimedCount === 1 ? '' : 's'} need a helper`;
+  const passwordBlock = familyPwd
+    ? `<p style="background:#fef3e7;border-left:3px solid #E89070;padding:10px 14px;margin:1.5em 0;font:14px/1.5 system-ui"><b>Family password</b> (share to the group with the link): <code style="background:#fff;padding:2px 6px;border-radius:4px">${escapeHtml(familyPwd)}</code></p>`
+    : '';
+  const html = `<div style="font:15px/1.55 system-ui;color:#2a2a22">` +
+    `<p>The grandparents just got their personal claim links by email.</p>` +
+    `<p>Forward the family group chat the nudge below to keep everyone in sync:</p>` +
+    `<p style="margin-top:1.5em"><a href="${waHref}" style="display:inline-block;background:#25D366;color:#fff;padding:12px 18px;border-radius:12px;text-decoration:none;font-weight:600">Share to family group on WhatsApp →</a></p>` +
+    passwordBlock +
+    `<pre style="background:#f6f3ec;padding:14px;border-radius:8px;font:14px/1.5 system-ui;white-space:pre-wrap;margin-top:1.5em">${escapeHtml(summary.body)}</pre>` +
+    `<p style="margin-top:1.5em">Open the dashboard: <a href="${baseUrl}/home">${baseUrl}/home</a></p>` +
+    `</div>`;
+  const body = `${groupMessage}\n\n---\n\n${summary.body}\n\nOpen the dashboard: ${baseUrl}/home`;
+
+  let sent = 0;
+  for (const a of admins) {
+    const r = await sendAndLog(sb, { household_id: householdId, to: a.email, subject, body, html });
+    if (!r.error) sent++;
+  }
+  await logNotification(sb, {
+    household_id: householdId,
+    kind: 'wa_link_built',
+    channel: 'whatsapp',
+    recipient: '-',
+    subject: 'Saturday family-group roundup link',
+  });
+  return { sent };
+}
+
 function firstName(s: string) { return (s ?? '').split(' ')[0] || 'there'; }
+function escapeHtml(s: string) {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+}
