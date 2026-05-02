@@ -23,30 +23,81 @@ export async function sendInvitesNowAction() {
 
 /**
  * Manually fire the FULL Saturday flow right now: grandparent invites
- * + admin "Helper roundup" email. Returns counts so the UI can show
- * "sent N invites + N admin emails" instead of leaving the user
- * wondering whether anything happened.
+ * + admin "Helper roundup" email. Returns counts AND a per-recipient
+ * breakdown so admins can debug "why didn't N get an email" without
+ * digging through Vercel logs.
  */
 export async function sendSaturdayNowAction(): Promise<{
   ok: boolean;
-  invitesSent: number;
-  adminSent: number;
+  inviteResults: { name: string; email: string | null; helper_kind: string | null; sent: boolean; skipped?: string }[];
+  adminResults: { name: string; email: string | null; sent: boolean; skipped?: string }[];
   error?: string;
 }> {
   try {
     const ctx = await requireAdmin();
-    const sent = await sendInvitesForHousehold(ctx.household!.id);
-    const roundup = await sendAdminHelperRoundup(ctx.household!.id);
+    const householdId = ctx.household!.id;
+
+    // Pull EVERY helper + admin so we can show "why was X skipped"
+    // even when they didn't get a send. Mirrors what the underlying
+    // sender does internally but with a richer return shape.
+    const sb = supabaseAdmin();
+    const { data: members } = await sb
+      .from('household_members')
+      .select('role, helper_kind, profiles:user_id(id, full_name, email, magic_token, email_enabled)')
+      .eq('household_id', householdId);
+    const all = (members ?? []).map((m: any) => ({ ...m.profiles, helper_kind: m.helper_kind, role: m.role }));
+
+    const helpers = all.filter((h: any) => h.role === 'helper');
+    const admins = all.filter((h: any) => h.role === 'admin');
+
+    // Diagnose each helper before doing the actual send.
+    const inviteResults = helpers.map((h: any) => {
+      let skipped: string | undefined;
+      if (h.helper_kind !== 'grandparent') skipped = `kind=${h.helper_kind ?? 'null'}, expected 'grandparent'`;
+      else if (!h.email) skipped = 'no email on profile';
+      return {
+        name: h.full_name ?? '(unnamed)',
+        email: h.email ?? null,
+        helper_kind: h.helper_kind ?? null,
+        sent: false,
+        skipped,
+      };
+    });
+
+    const adminResults = admins.map((a: any) => {
+      let skipped: string | undefined;
+      if (!a.email) skipped = 'no email on profile';
+      else if (a.email_enabled === false) skipped = 'email_enabled=false on profile';
+      return {
+        name: a.full_name ?? '(unnamed)',
+        email: a.email ?? null,
+        sent: false,
+        skipped,
+      };
+    });
+
+    // Now actually fire the sends.
+    const sent = await sendInvitesForHousehold(householdId);
+    const sentEmails = new Set(sent.filter((s) => s.ok).map((s) => s.to));
+    for (const r of inviteResults) {
+      if (r.email && sentEmails.has(r.email)) { r.sent = true; r.skipped = undefined; }
+    }
+
+    const roundup = await sendAdminHelperRoundup(householdId);
+    // sendAdminHelperRoundup doesn't currently return per-recipient
+    // detail — assume all unskipped admins got it if the count matches.
+    const adminUnskipped = adminResults.filter((a) => !a.skipped);
+    if (roundup.sent === adminUnskipped.length) {
+      for (const a of adminUnskipped) a.sent = true;
+    }
+
     revalidatePath('/admin/invites');
     revalidatePath('/admin/activity');
-    return {
-      ok: true,
-      invitesSent: sent.filter((s) => s.ok).length,
-      adminSent: roundup.sent ?? 0,
-    };
+
+    return { ok: true, inviteResults, adminResults };
   } catch (e: any) {
     console.error('sendSaturdayNowAction failed', e);
-    return { ok: false, invitesSent: 0, adminSent: 0, error: e?.message ?? String(e) };
+    return { ok: false, inviteResults: [], adminResults: [], error: e?.message ?? String(e) };
   }
 }
 
