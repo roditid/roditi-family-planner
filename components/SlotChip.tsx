@@ -485,13 +485,13 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    // Open the detail modal AND fire the claim in one go.
-                    // The optimistic UI flips immediately, the modal lands
-                    // on the post-claim state with the "Send to my
-                    // WhatsApp" share button — so the helper sees full
-                    // addresses/door codes and can forward to themselves.
+                    // Open the detail modal — the helper reviews addresses,
+                    // door codes, and the WhatsApp share button there, then
+                    // taps "Claim this pickup" inside the modal to actually
+                    // confirm. Avoids the router-refresh-during-mount race
+                    // that broke modal scroll when both fired in the same
+                    // click.
                     setOpen(true);
-                    doClaim();
                   }}
                   disabled={pending}
                   className="ml-auto rounded-2xl text-base font-bold tracking-wide transition-all duration-150 active:scale-95 bg-sage-500 hover:bg-sage-600 text-cream-50 px-6 py-3.5 shadow-card hover:shadow-cardHover focus:outline-none focus:ring-4 focus:ring-sage-500/30"
