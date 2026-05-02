@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { randomBytes } from 'crypto';
 import { requireAdmin } from '@/lib/permissions';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { demoMode } from '@/lib/demo-session';
@@ -89,7 +90,19 @@ export async function sendInvitesForHousehold(
 
   const sent: { to: string; ok: boolean }[] = [];
   for (const h of helpers) {
-    if (!h.email || !h.magic_token) continue;
+    if (!h.email) continue;
+    // Backfill: a helper without a magic_token can't be invited via
+    // the personal link. Generate one on the fly so the very first
+    // Saturday email lands a working URL — no manual setup needed.
+    if (!h.magic_token) {
+      if (!sb) continue; // demo mode: just skip
+      const newToken = `tok-${randomBytes(8).toString('hex')}`;
+      await sb.from('profiles').update({
+        magic_token: newToken,
+        token_issued_at: new Date().toISOString(),
+      }).eq('id', h.id);
+      h.magic_token = newToken;
+    }
     const url = `${baseUrl}/i/${h.magic_token}`;
     const subject = `${firstName(h.full_name)} — pickups for this week`;
     const lines = [
