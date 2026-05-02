@@ -25,8 +25,8 @@ export default function SendSummaryToLiezel({ liezelPhone, summaryBody }: Props)
   return (
     <div className="mt-8 pt-6 border-t border-black/5 flex flex-wrap items-center gap-3 justify-between">
       <div className="text-sm text-ink-700/65 max-w-md">
-        Send this week's full schedule to Liezel — she gets the same
-        summary you see, addresses included.
+        Don't forget to send Liezel the weekly summary on WhatsApp —
+        she'll get the same schedule you see, addresses included.
       </div>
       <a
         href={href}

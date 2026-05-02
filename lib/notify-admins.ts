@@ -61,7 +61,7 @@ export async function sendAdminClaimUpdate(
         household_id: householdId,
         to: a.email,
         subject,
-        body,
+        body: body.replace(/\n\nFamily password.*$/m, ''), // safety: strip legacy password lines
         html,
       });
     }

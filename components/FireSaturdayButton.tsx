@@ -35,6 +35,11 @@ export default function FireSaturdayButton() {
 
       {result && result.ok && (
         <div className="mt-4 space-y-3 text-sm">
+          {result.globalError && (
+            <div className="rounded-lg bg-coral-400/15 border border-coral-400/30 px-3 py-2 text-coral-700 text-xs">
+              {result.globalError}
+            </div>
+          )}
           <div>
             <div className="text-[11px] uppercase tracking-[0.1em] font-semibold text-ink-700/55 mb-1">Grandparent invites</div>
             {result.inviteResults.length === 0 ? (
@@ -42,11 +47,12 @@ export default function FireSaturdayButton() {
             ) : (
               <ul className="space-y-1">
                 {result.inviteResults.map((r) => (
-                  <li key={r.email ?? r.name} className="flex items-baseline gap-2">
+                  <li key={r.email ?? r.name} className="flex items-baseline gap-2 flex-wrap">
                     <span className={r.sent ? 'text-sage-700' : 'text-ink-700/40'}>{r.sent ? '✓' : '–'}</span>
                     <span className="font-medium">{r.name}</span>
                     <span className="text-ink-700/55 truncate">{r.email ?? '(no email)'}</span>
                     {r.skipped && <span className="text-coral-600 text-xs">{r.skipped}</span>}
+                    {r.sendError && <span className="text-coral-600 text-xs">⚠︎ {r.sendError}</span>}
                   </li>
                 ))}
               </ul>
@@ -59,11 +65,12 @@ export default function FireSaturdayButton() {
             ) : (
               <ul className="space-y-1">
                 {result.adminResults.map((r) => (
-                  <li key={r.email ?? r.name} className="flex items-baseline gap-2">
+                  <li key={r.email ?? r.name} className="flex items-baseline gap-2 flex-wrap">
                     <span className={r.sent ? 'text-sage-700' : 'text-ink-700/40'}>{r.sent ? '✓' : '–'}</span>
                     <span className="font-medium">{r.name}</span>
                     <span className="text-ink-700/55 truncate">{r.email ?? '(no email)'}</span>
                     {r.skipped && <span className="text-coral-600 text-xs">{r.skipped}</span>}
+                    {r.sendError && <span className="text-coral-600 text-xs">⚠︎ {r.sendError}</span>}
                   </li>
                 ))}
               </ul>

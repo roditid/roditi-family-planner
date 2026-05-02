@@ -29,8 +29,9 @@ export async function sendInvitesNowAction() {
  */
 export async function sendSaturdayNowAction(): Promise<{
   ok: boolean;
-  inviteResults: { name: string; email: string | null; helper_kind: string | null; sent: boolean; skipped?: string }[];
-  adminResults: { name: string; email: string | null; sent: boolean; skipped?: string }[];
+  inviteResults: { name: string; email: string | null; helper_kind: string | null; sent: boolean; skipped?: string; sendError?: string }[];
+  adminResults: { name: string; email: string | null; sent: boolean; skipped?: string; sendError?: string }[];
+  globalError?: string;
   error?: string;
 }> {
   try {
@@ -51,7 +52,9 @@ export async function sendSaturdayNowAction(): Promise<{
     const admins = all.filter((h: any) => h.role === 'admin');
 
     // Diagnose each helper before doing the actual send.
-    const inviteResults = helpers.map((h: any) => {
+    type InviteRow = { name: string; email: string | null; helper_kind: string | null; sent: boolean; skipped?: string; sendError?: string };
+    type AdminRow = { name: string; email: string | null; sent: boolean; skipped?: string; sendError?: string };
+    const inviteResults: InviteRow[] = helpers.map((h: any) => {
       let skipped: string | undefined;
       if (h.helper_kind !== 'grandparent') skipped = `kind=${h.helper_kind ?? 'null'}, expected 'grandparent'`;
       else if (!h.email) skipped = 'no email on profile';
@@ -64,7 +67,7 @@ export async function sendSaturdayNowAction(): Promise<{
       };
     });
 
-    const adminResults = admins.map((a: any) => {
+    const adminResults: AdminRow[] = admins.map((a: any) => {
       let skipped: string | undefined;
       if (!a.email) skipped = 'no email on profile';
       else if (a.email_enabled === false) skipped = 'email_enabled=false on profile';
@@ -76,25 +79,44 @@ export async function sendSaturdayNowAction(): Promise<{
       };
     });
 
-    // Now actually fire the sends.
+    // Now actually fire the sends — sendInvitesForHousehold returns per-
+    // recipient outcomes including the underlying provider error so we
+    // can surface "Resend domain not verified" etc. in the UI instead
+    // of leaving admins guessing why nothing arrived.
     const sent = await sendInvitesForHousehold(householdId);
-    const sentEmails = new Set(sent.filter((s) => s.ok).map((s) => s.to));
+    const errBy = new Map(sent.map((s) => [s.to, s.error]));
     for (const r of inviteResults) {
-      if (r.email && sentEmails.has(r.email)) { r.sent = true; r.skipped = undefined; }
+      if (!r.email) continue;
+      if (errBy.has(r.email)) {
+        const err = errBy.get(r.email);
+        if (err) { r.sendError = err; }
+        else { r.sent = true; r.skipped = undefined; }
+      }
     }
 
     const roundup = await sendAdminHelperRoundup(householdId);
-    // sendAdminHelperRoundup doesn't currently return per-recipient
-    // detail — assume all unskipped admins got it if the count matches.
-    const adminUnskipped = adminResults.filter((a) => !a.skipped);
-    if (roundup.sent === adminUnskipped.length) {
-      for (const a of adminUnskipped) a.sent = true;
+    const roundupErrBy = new Map(roundup.results?.map((r) => [r.to, r.error]) ?? []);
+    for (const a of adminResults) {
+      if (!a.email) continue;
+      if (roundupErrBy.has(a.email)) {
+        const err = roundupErrBy.get(a.email);
+        if (err) { a.sendError = err; }
+        else { a.sent = true; a.skipped = undefined; }
+      }
     }
+
+    // Surface a global heads-up if NO emails landed — usually means
+    // RESEND_API_KEY isn't set or the from-domain isn't verified.
+    const anySent = inviteResults.some((r) => r.sent) || adminResults.some((r) => r.sent);
+    const anyError = inviteResults.some((r) => r.sendError) || adminResults.some((r) => r.sendError);
+    const globalError = !anySent && anyError
+      ? 'No emails were delivered. Check RESEND_API_KEY in Vercel + that REMINDER_FROM_EMAIL uses a verified domain.'
+      : undefined;
 
     revalidatePath('/admin/invites');
     revalidatePath('/admin/activity');
 
-    return { ok: true, inviteResults, adminResults };
+    return { ok: true, inviteResults, adminResults, globalError };
   } catch (e: any) {
     console.error('sendSaturdayNowAction failed', e);
     return { ok: false, inviteResults: [], adminResults: [], error: e?.message ?? String(e) };
@@ -139,7 +161,7 @@ export async function sendInvitesForHousehold(
   const familyPwd = process.env.FAMILY_PASSWORD;
   const sb = demoMode() ? null : supabaseAdmin();
 
-  const sent: { to: string; ok: boolean }[] = [];
+  const sent: { to: string; ok: boolean; error?: string }[] = [];
   for (const h of helpers) {
     if (!h.email) continue;
     // Backfill: a helper without a magic_token can't be invited via
@@ -155,31 +177,36 @@ export async function sendInvitesForHousehold(
       h.magic_token = newToken;
     }
     const url = `${baseUrl}/i/${h.magic_token}`;
-    const subject = `${firstName(h.full_name)} — pickups for this week`;
+    const fName = firstName(h.full_name);
+    const subject = `${fName}, can you help with pickups this week?`;
     const lines = [
-      `Hi ${firstName(h.full_name)},`,
+      `Hi ${fName},`,
       ``,
-      `Here are next week's pickups. Tap your link to see what's on and claim any you can do:`,
+      `Here are next week's pickup options for your beautiful grandchildren. Tap your link to see what's available and claim any that work for you:`,
       ``,
       url,
       ``,
     ];
     if (familyPwd) {
-      lines.push(`When the page asks for the family password, enter:`);
-      lines.push(``);
-      lines.push(`    ${familyPwd}`);
-      lines.push(``);
-      lines.push(`(One password for the whole family — keeps the schedule out of casual reach.)`);
+      lines.push(`When prompted for the family password, please enter:`);
+      lines.push(familyPwd);
       lines.push(``);
     }
-    lines.push(`Whatever you don't claim, Paula and Liezel will pick up. Thanks for being there.`);
+    lines.push(`If you can, please claim your pickups by tonight so we can finalize the schedule. Anything you don't claim will be covered by Paula and Liezel.`);
     lines.push(``);
-    lines.push(`— The Roditi family`);
+    lines.push(`Thank you so much for always being there and helping us — we truly appreciate it.`);
+    lines.push(``);
+    lines.push(`Love,`);
+    lines.push(`The Roditi family`);
     const body = lines.join('\n');
     const r = sb
       ? await sendAndLog(sb, { household_id: householdId, to: h.email, subject, body })
       : await emailProvider.send({ to: h.email, subject, body });
-    sent.push({ to: h.email, ok: !r.error });
+    sent.push({
+      to: h.email,
+      ok: !r.error,
+      error: r.error ? String((r.error as any)?.message ?? r.error) : undefined,
+    });
 
     if (sb) {
       await sb.from('profiles').update({ last_invite_sent_at: new Date().toISOString() }).eq('id', h.id);
@@ -193,6 +220,10 @@ export async function sendInvitesForHousehold(
  * to admins, exposed as a function so a manual button can fire it too.
  * Pulled out of the cron handler so /admin/invites can re-run it on
  * demand (e.g. when a deploy lands after the cron's window).
+ *
+ * The family password lives in the WhatsApp share message (which goes
+ * to the family group) but NOT in the email body itself — admins know
+ * the password and don't need it repeated to them.
  */
 export async function sendAdminHelperRoundup(householdId: string) {
   if (demoMode()) return { sent: 0 };
@@ -200,6 +231,16 @@ export async function sendAdminHelperRoundup(householdId: string) {
   const familyPwd = process.env.FAMILY_PASSWORD;
   const sb = supabaseAdmin();
   const summary = await buildFullWeekSummary(sb, householdId);
+
+  // Pull kids' names so the email reads "Adam, Liam and Yali's
+  // grandparents…" rather than the generic "the grandparents…".
+  const { data: kidRows } = await sb
+    .from('children')
+    .select('name')
+    .eq('household_id', householdId)
+    .order('name');
+  const kidNames = (kidRows ?? []).map((k: any) => k.name);
+  const kidsList = formatNameList(kidNames);
 
   const { data: members } = await sb
     .from('household_members')
@@ -211,39 +252,47 @@ export async function sendAdminHelperRoundup(householdId: string) {
     .filter((p: any) => p && p.email && p.email_enabled !== false);
   if (admins.length === 0) return { sent: 0 };
 
+  // The WhatsApp message (sent to the family group) DOES include the
+  // password — that's the whole point of forwarding it.
   const groupMessage =
     `Hi family ❤️\n\n` +
     `This week's pickups are up. ${summary.unclaimedCount} of ${summary.totalCount} still need a helper.\n\n` +
     `Check your email for your personal link, or open the schedule at ${baseUrl}.\n\n` +
     (familyPwd ? `Family password: ${familyPwd}\n\n` : '') +
-    `Try to claim what fits your week by tonight 🙏`;
+    `Please try to claim what fits your week by tonight 🙏`;
   const waHref = `https://wa.me/?text=${encodeURIComponent(groupMessage)}`;
 
   const subject = `Saturday roundup — ${summary.unclaimedCount} pickup${summary.unclaimedCount === 1 ? '' : 's'} need a helper`;
-  const passwordBlock = familyPwd
-    ? `<p style="background:#fef3e7;border-left:3px solid #E89070;padding:10px 14px;margin:1.5em 0;font:14px/1.5 system-ui"><b>Family password</b> (share to the group with the link): <code style="background:#fff;padding:2px 6px;border-radius:4px">${escapeHtml(familyPwd)}</code></p>`
-    : '';
-  // Saturday email is intentionally light — just nudge the family
-  // group + share the password. The full weekly breakdown lands in
-  // Sunday morning's email so admins aren't reading the same list
-  // two mornings in a row.
+  const grandparentsLine = kidsList
+    ? `${escapeHtml(kidsList)}'s grandparents just got their personal claim links via email.`
+    : `The grandparents just got their personal claim links via email.`;
   const html = `<div style="font:15px/1.55 system-ui;color:#2a2a22">` +
-    `<p>The grandparents just got their personal claim links.</p>` +
+    `<p>${grandparentsLine}</p>` +
     `<p><b>${summary.unclaimedCount}</b> of ${summary.totalCount} pickup${summary.totalCount === 1 ? '' : 's'} need a helper this week.</p>` +
     `<p>Forward this nudge to the family group chat so everyone sees it:</p>` +
     `<p style="margin-top:1.5em"><a href="${waHref}" style="display:inline-block;background:#25D366;color:#fff;padding:12px 18px;border-radius:12px;text-decoration:none;font-weight:600">Share to family group on WhatsApp →</a></p>` +
-    passwordBlock +
     `<p style="color:#888;font-size:13px;margin-top:1.5em">You'll get the full week breakdown tomorrow morning — the Sunday recap. For now, just nudge the family.</p>` +
     `<p style="margin-top:1.5em">Open the dashboard: <a href="${baseUrl}/home">${baseUrl}/home</a></p>` +
     `</div>`;
-  const body = `${groupMessage}\n\n---\n\n${summary.unclaimedCount} of ${summary.totalCount} pickups need a helper this week.` +
-    `\n\nThe full breakdown will land in tomorrow's Sunday recap email — today, just share the nudge above to the family group.` +
-    `\n\nOpen the dashboard: ${baseUrl}/home`;
+  const grandparentsLineText = kidsList
+    ? `${kidsList}'s grandparents just got their personal claim links via email.`
+    : `The grandparents just got their personal claim links via email.`;
+  const body = `${grandparentsLineText}\n\n` +
+    `${summary.unclaimedCount} of ${summary.totalCount} pickups need a helper this week.\n\n` +
+    `Forward this nudge to the family group chat so everyone sees it:\n${waHref}\n\n` +
+    `You'll get the full week breakdown tomorrow morning — the Sunday recap. For now, just nudge the family.\n\n` +
+    `Open the dashboard: ${baseUrl}/home`;
 
   let sent = 0;
+  const results: { to: string; ok: boolean; error?: string }[] = [];
   for (const a of admins) {
     const r = await sendAndLog(sb, { household_id: householdId, to: a.email, subject, body, html });
     if (!r.error) sent++;
+    results.push({
+      to: a.email,
+      ok: !r.error,
+      error: r.error ? String((r.error as any)?.message ?? r.error) : undefined,
+    });
   }
   await logNotification(sb, {
     household_id: householdId,
@@ -252,10 +301,17 @@ export async function sendAdminHelperRoundup(householdId: string) {
     recipient: '-',
     subject: 'Saturday family-group roundup link',
   });
-  return { sent };
+  return { sent, results };
 }
 
 function firstName(s: string) { return (s ?? '').split(' ')[0] || 'there'; }
 function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+}
+/** Format ['Adam','Liam','Yali'] → "Adam, Liam and Yali". */
+function formatNameList(names: string[]): string {
+  if (names.length === 0) return '';
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
