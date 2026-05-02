@@ -104,8 +104,8 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
         additional_children = kids ?? [];
       }
       const hydrated = { ...slot, additional_children };
-      const { subject, body } = renderClaimConfirmation(hydrated as any, profile.full_name ?? null);
-      await emailProvider.send({ to: profile.email, subject, body });
+      const { subject, body, html } = renderClaimConfirmation(hydrated as any, profile.full_name ?? null);
+      await emailProvider.send({ to: profile.email, subject, body, html });
     }
   } catch (e) {
     // Log only — do not surface email errors to the claim caller.

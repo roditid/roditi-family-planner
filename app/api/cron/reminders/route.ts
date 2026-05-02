@@ -41,8 +41,8 @@ export async function GET(req: NextRequest) {
       const profile = slot.assignment.profile;
       if (!profile.email_enabled || !profile.email) continue;
 
-      const { subject, body } = renderReminder(slot);
-      const send = await emailProvider.send({ to: profile.email, subject, body });
+      const { subject, body, html } = renderReminder(slot);
+      const send = await emailProvider.send({ to: profile.email, subject, body, html });
 
       await sb.from('notification_logs').insert({
         household_id: h.id,
