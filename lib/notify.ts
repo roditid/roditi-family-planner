@@ -8,11 +8,18 @@ import { Resend } from 'resend';
 import { formatAddress } from '@/lib/maps';
 import type { SlotView } from './types';
 
+export interface NotifyAttachment {
+  filename: string;
+  content: string;       // utf-8 string (resend will handle base64 internally)
+  contentType?: string;  // e.g. "text/calendar; method=REQUEST"
+}
+
 export interface NotifyMessage {
   to: string;
   subject: string;
   body: string;
   html?: string;
+  attachments?: NotifyAttachment[];
 }
 
 export interface NotifyProvider {
@@ -22,7 +29,7 @@ export interface NotifyProvider {
 
 export const emailProvider: NotifyProvider = {
   channel: 'email',
-  async send({ to, subject, body, html }) {
+  async send({ to, subject, body, html, attachments }) {
     if (!process.env.RESEND_API_KEY) {
       return { id: null, error: 'RESEND_API_KEY not configured' };
     }
@@ -33,6 +40,14 @@ export const emailProvider: NotifyProvider = {
       subject,
       text: body,
       html: html ?? `<pre style="font:16px/1.5 system-ui">${escapeHtml(body)}</pre>`,
+      attachments: attachments?.map((a) => ({
+        filename: a.filename,
+        content: Buffer.from(a.content).toString('base64'),
+        // Resend uses the filename extension to infer content type if
+        // not specified; .ics files render as Add-to-Calendar buttons
+        // in Gmail / Apple Mail / Outlook automatically.
+        ...(a.contentType ? { contentType: a.contentType } : {}),
+      })),
     });
     if (error) return { id: null, error: String(error.message ?? error) };
     return { id: data?.id ?? null, error: null };
@@ -84,7 +99,114 @@ export function renderClaimConfirmation(slot: SlotView, helperName: string | nul
     intro: `Here's everything you need for the day. Save this email or screenshot it — door codes, ganenet contacts, and the full route are all below.`,
     isReminder: false,
   });
-  return { subject, body, html };
+  // Attach an .ics file so the helper's email client (Gmail/Apple Mail/
+  // Outlook) shows an "Add to calendar" button — they tap once and the
+  // pickup lands in their personal calendar with native reminders.
+  // We do NOT add them as attendees on the source Google Calendar event
+  // anymore; that was triggering "event updated" notifications to Paula
+  // (the calendar owner) on every claim.
+  const ics = renderIcsForSlot(slot, kidNames);
+  return {
+    subject,
+    body,
+    html,
+    attachments: [
+      { filename: 'pickup.ics', content: ics, contentType: 'text/calendar; method=REQUEST' },
+    ],
+  };
+}
+
+/**
+ * Build a minimal valid .ics calendar invite for a slot. Designed to
+ * be detected by major email clients (Gmail/Apple Mail/Outlook) so they
+ * surface a one-tap "Add to calendar" button on the message.
+ */
+function renderIcsForSlot(slot: SlotView, kidNames: string): string {
+  // Compose start/end Date objects from slot.date + pickup_time/end_time
+  // in the household's timezone (defaulting to Israel for now). We emit
+  // local-time date-times tagged with TZID so calendar clients land them
+  // at the right moment regardless of the helper's own timezone.
+  const tz = 'Asia/Jerusalem';
+  const startTime = slot.pickup_time.slice(0, 5);
+  const endTime = (slot as any).end_time?.slice?.(0, 5)
+    ?? (slot as any).activity_start_time?.slice?.(0, 5)
+    ?? add60Min(startTime); // sensible default if event has no end
+  const dtStart = `${slot.date.replace(/-/g, '')}T${startTime.replace(':', '')}00`;
+  const dtEnd = `${slot.date.replace(/-/g, '')}T${endTime.replace(':', '')}00`;
+
+  const summary = `${kidNames} — ${slot.title}`;
+  const locationParts: string[] = [];
+  const pickup = slot.pickup_location?.label ?? slot.pickup_location_text;
+  const via = slot.via_location?.label ?? (slot as any).via_location_text;
+  const dest = slot.destination_location?.label ?? (slot as any).destination_text;
+  if (pickup) locationParts.push(pickup);
+  if (via) locationParts.push(via);
+  if (dest) locationParts.push(dest);
+  const location = locationParts.join(' → ');
+
+  // Description body — include each stop's address so the helper has
+  // everything in their calendar event without needing the email.
+  const descLines: string[] = [];
+  if (pickup) {
+    const addr = formatAddress(slot.pickup_location);
+    descLines.push(`Pick up: ${pickup}${addr ? ` (${addr})` : ''}`);
+  }
+  for (const k of slot.additional_children ?? []) {
+    const sl = (k as any).school_location;
+    if (sl) {
+      const addr = formatAddress(sl);
+      descLines.push(`Then ${k.name}: ${sl.label}${addr ? ` (${addr})` : ''}`);
+    }
+  }
+  if (via) {
+    const addr = formatAddress(slot.via_location);
+    descLines.push(`Activity: ${via}${addr ? ` (${addr})` : ''}`);
+  }
+  if (dest) {
+    const addr = formatAddress(slot.destination_location);
+    descLines.push(`Drop off: ${dest}${addr ? ` (${addr})` : ''}`);
+  }
+  if (slot.notes) descLines.push(`Notes: ${slot.notes}`);
+  const description = descLines.join('\\n');
+
+  const uid = `pickup-${slot.id}@roditi.ch`;
+  const dtStamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+
+  return [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Roditi Family Planner//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:REQUEST',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTAMP:${dtStamp}`,
+    `DTSTART;TZID=${tz}:${dtStart}`,
+    `DTEND;TZID=${tz}:${dtEnd}`,
+    `SUMMARY:${icsEscape(summary)}`,
+    `DESCRIPTION:${icsEscape(description)}`,
+    location ? `LOCATION:${icsEscape(location)}` : '',
+    'STATUS:CONFIRMED',
+    'BEGIN:VALARM',
+    'TRIGGER:-PT30M',
+    'ACTION:DISPLAY',
+    `DESCRIPTION:Pickup in 30 min`,
+    'END:VALARM',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].filter(Boolean).join('\r\n');
+}
+
+function icsEscape(s: string): string {
+  return (s ?? '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+}
+
+function add60Min(t: string): string {
+  const [h, m] = t.split(':').map(Number);
+  const total = h * 60 + m + 60;
+  const h2 = Math.floor(total / 60) % 24;
+  const m2 = total % 60;
+  return `${String(h2).padStart(2, '0')}:${String(m2).padStart(2, '0')}`;
 }
 
 // ─── Shared slot-detail renderer ───────────────────────────────────────

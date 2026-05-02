@@ -6,7 +6,7 @@ import { claimSlot } from '@/lib/demo-store';
 import { recordEvent } from '@/lib/events';
 import { DEMO } from '@/lib/demo-store';
 import { emailProvider, renderClaimConfirmation } from '@/lib/notify';
-import { updateEventTitleForClaim, addAttendeeToEvent } from '@/lib/google/calendar';
+import { updateEventTitleForClaim } from '@/lib/google/calendar';
 import { sendLiezelSummaryUpdate } from '@/lib/notify-liezel';
 import { sendAdminClaimUpdate } from '@/lib/notify-admins';
 
@@ -66,28 +66,19 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
   // Update the source Google Calendar event's title to "[Helper] …" so
   // Paula sees the claim immediately on her own calendar. Best-effort.
-  // For admin claimers, ALSO add them as a Google attendee so they get
-  // a real calendar invite in their personal email — Dani sees it on
-  // his Meron calendar, Paula on her personal calendar, etc.
+  // The claimer doesn't need to be added as a Google attendee — that
+  // triggered "event updated" emails to Paula (calendar owner) on every
+  // claim. Instead, the claim confirmation email below carries an .ics
+  // attachment so the claimer's email client offers Add-to-Calendar.
   if (slot?.source_event_id) {
     try {
-      const { data: profile } = await sb.from('profiles').select('full_name, email').eq('id', user.id).maybeSingle();
+      const { data: profile } = await sb.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
       const firstName = (profile?.full_name ?? '').split(/[\s(]/)[0] || null;
       if (firstName) {
         await updateEventTitleForClaim(sb, slot.household_id, slot.source_event_id, firstName);
       }
-      // Check if the claimer is an admin → add as Google attendee
-      const { data: membership } = await sb
-        .from('household_members')
-        .select('role')
-        .eq('household_id', slot.household_id)
-        .eq('user_id', user.id)
-        .maybeSingle();
-      if (membership?.role === 'admin' && profile?.email) {
-        await addAttendeeToEvent(sb, slot.household_id, slot.source_event_id, profile.email);
-      }
     } catch (e) {
-      console.error('calendar event title/attendee update failed', e);
+      console.error('calendar event title update failed', e);
     }
   }
 
@@ -104,8 +95,8 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
         additional_children = kids ?? [];
       }
       const hydrated = { ...slot, additional_children };
-      const { subject, body, html } = renderClaimConfirmation(hydrated as any, profile.full_name ?? null);
-      await emailProvider.send({ to: profile.email, subject, body, html });
+      const { subject, body, html, attachments } = renderClaimConfirmation(hydrated as any, profile.full_name ?? null);
+      await emailProvider.send({ to: profile.email, subject, body, html, attachments });
     }
   } catch (e) {
     // Log only — do not surface email errors to the claim caller.
