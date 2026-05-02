@@ -768,12 +768,12 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
                   additional_children = kids ?? [];
                 }
                 const fullSlot = { ...hydratedSlot, additional_children };
-                const { subject, body, html } = renderClaimConfirmation(fullSlot as any, claimerProfile.full_name ?? null);
+                const { subject, body, html, attachments } = renderClaimConfirmation(fullSlot as any, claimerProfile.full_name ?? null);
                 const { sendAndLog } = await import('../notify-log');
                 await sendAndLog(sb, {
                   household_id: householdId,
                   to: claimerProfile.email,
-                  subject, body, html,
+                  subject, body, html, attachments,
                   actor_user_id: prefixedHelperId,
                   slot_id: slotRow.id,
                 });

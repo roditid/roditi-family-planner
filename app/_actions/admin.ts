@@ -274,11 +274,11 @@ export async function reassignSlotAction(formData: FormData) {
             const fullSlot = { ...hydrated, additional_children };
             const { renderClaimConfirmation } = await import('@/lib/notify');
             const { sendAndLog } = await import('@/lib/notify-log');
-            const { subject, body, html } = renderClaimConfirmation(fullSlot as any, assigneeProfile.full_name ?? null);
+            const { subject, body, html, attachments } = renderClaimConfirmation(fullSlot as any, assigneeProfile.full_name ?? null);
             await sendAndLog(sb, {
               household_id: ctx.household!.id,
               to: assigneeProfile.email,
-              subject, body, html,
+              subject, body, html, attachments,
               actor_user_id: userId,
               slot_id: slotId,
             });

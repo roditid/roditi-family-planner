@@ -141,15 +141,17 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
         additional_children = kids ?? [];
       }
       const hydrated = { ...slot, additional_children };
-      const { subject, body, html } = renderClaimConfirmation(hydrated as any, profile.full_name ?? null);
-      // No .ics attachment — admins are added as Google attendees above
-      // (the event lands on their personal calendar natively); helpers
-      // don't manage personal calendars for pickups.
+      const { subject, body, html, attachments } = renderClaimConfirmation(hydrated as any, profile.full_name ?? null);
+      // .ics attachment: every claimer (admin or helper) gets a tap-to-
+      // add-to-calendar button via their email client. Admins also have
+      // the event auto-attached to their personal Google Calendar via
+      // the attendee path above — the .ics is the visible "Calendar
+      // Invite" email feel.
       const { sendAndLog } = await import('@/lib/notify-log');
       await sendAndLog(sb, {
         household_id: slot.household_id,
         to: profile.email,
-        subject, body, html,
+        subject, body, html, attachments,
         actor_user_id: user.id,
         slot_id: slot.id,
       });

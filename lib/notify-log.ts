@@ -55,6 +55,7 @@ interface SendArgs {
   subject: string;
   body: string;
   html?: string;
+  attachments?: { filename: string; content: string; contentType?: string }[];
 }
 
 interface SendAndLogArgs extends SendArgs {
@@ -72,6 +73,7 @@ export async function sendAndLog(
     subject: args.subject,
     body: args.body,
     html: args.html,
+    attachments: args.attachments,
   });
   await logNotification(sb, {
     household_id: args.household_id,
