@@ -18,6 +18,11 @@ export async function sendAdminClaimUpdate(
   context: { actorName?: string | null; action: 'claimed' | 'unclaimed' | 'reassigned'; slotLabel?: string | null }
 ) {
   try {
+    // Suppression window: between Saturday 10:00 IL (when the helper
+    // roundup fires) and Sunday 07:00 IL (when the full week recap
+    // lands). Paula doesn't need a play-by-play during the claim
+    // window — she gets a complete picture on Sunday morning.
+    if (isInSuppressionWindow()) return;
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://roditi.ch';
     const summary = await buildFullWeekSummary(sb, householdId);
 
@@ -81,4 +86,22 @@ export async function sendAdminClaimUpdate(
 
 function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+}
+
+/** True between Saturday 10:00 IL and Sunday 07:00 IL — i.e., the
+ *  window when the Saturday roundup has fired but the Sunday recap
+ *  hasn't yet. We suppress mid-week claim emails to admins during
+ *  this stretch so Paula's inbox stays quiet until Sunday morning. */
+function isInSuppressionWindow(): boolean {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Jerusalem',
+    weekday: 'short',
+    hour: 'numeric',
+    hour12: false,
+  }).formatToParts(new Date());
+  const weekday = parts.find((p) => p.type === 'weekday')?.value ?? '';
+  const hour = parseInt(parts.find((p) => p.type === 'hour')?.value ?? '0', 10);
+  if (weekday === 'Sat' && hour >= 10) return true;
+  if (weekday === 'Sun' && hour < 7) return true;
+  return false;
 }

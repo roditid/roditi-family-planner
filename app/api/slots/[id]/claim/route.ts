@@ -96,7 +96,24 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       }
       const hydrated = { ...slot, additional_children };
       const { subject, body, html, attachments } = renderClaimConfirmation(hydrated as any, profile.full_name ?? null);
-      await emailProvider.send({ to: profile.email, subject, body, html, attachments });
+      // Only admins (Paula + Dani) get the .ics calendar attachment.
+      // Grandparents and Liezel get the rich confirmation email but
+      // not a calendar invite — they don't track pickups in personal
+      // Google Calendars.
+      const { data: membership } = await sb
+        .from('household_members')
+        .select('role')
+        .eq('household_id', slot.household_id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      const isAdmin = membership?.role === 'admin';
+      await emailProvider.send({
+        to: profile.email,
+        subject,
+        body,
+        html,
+        attachments: isAdmin ? attachments : undefined,
+      });
     }
   } catch (e) {
     // Log only — do not surface email errors to the claim caller.
