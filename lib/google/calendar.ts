@@ -260,9 +260,33 @@ export async function addAttendeeToEvent(
       sendUpdates: 'all',
       requestBody: { attendees: merged },
     });
+    // Log to notification feed (best effort).
+    try {
+      const { logNotification } = await import('../notify-log');
+      await logNotification(sb, {
+        household_id: householdId,
+        kind: 'calendar_invite',
+        channel: 'google_calendar',
+        recipient: email,
+        subject: 'Calendar invite added on claim',
+        slot_id: null,
+      });
+    } catch {}
     return { ok: true };
   } catch (e: any) {
     console.error('addAttendeeToEvent failed', e?.message ?? e);
+    try {
+      const { logNotification } = await import('../notify-log');
+      await logNotification(sb, {
+        household_id: householdId,
+        kind: 'calendar_invite_failed',
+        channel: 'google_calendar',
+        recipient: email,
+        subject: 'Calendar invite failed',
+        status: 'failed',
+        error: e?.message ?? String(e),
+      });
+    } catch {}
     return { ok: false, error: e?.message ?? 'unknown' };
   }
 }

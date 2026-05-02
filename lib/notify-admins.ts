@@ -9,7 +9,7 @@
  * Best-effort and silent on failure.
  */
 import { SupabaseClient } from '@supabase/supabase-js';
-import { emailProvider } from './notify';
+import { sendAndLog, logNotification } from './notify-log';
 import { buildFullWeekSummary } from './summaries';
 
 export async function sendAdminClaimUpdate(
@@ -57,7 +57,22 @@ export async function sendAdminClaimUpdate(
       (waHref ? `\n\nForward to Liezel on WhatsApp:\n${waHref}` : '');
 
     for (const a of admins) {
-      await emailProvider.send({ to: a.email, subject, body, html });
+      await sendAndLog(sb, {
+        household_id: householdId,
+        to: a.email,
+        subject,
+        body,
+        html,
+      });
+    }
+    if (waHref) {
+      await logNotification(sb, {
+        household_id: householdId,
+        kind: 'wa_link_built',
+        channel: 'whatsapp',
+        recipient: liezelPhone,
+        subject: `Mid-week update (${context.action})`,
+      });
     }
   } catch (e) {
     console.error('admin claim-update notify failed', e);

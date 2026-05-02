@@ -10,7 +10,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { emailProvider } from '@/lib/notify';
+import { sendAndLog, logNotification } from '@/lib/notify-log';
 import { buildFullWeekSummary } from '@/lib/summaries';
 
 export async function GET(req: NextRequest) {
@@ -60,13 +60,23 @@ export async function GET(req: NextRequest) {
           : `${summary.unclaimedCount} of ${summary.totalCount} pickups still need a helper.`) +
         `\n\nOpen the dashboard: ${baseUrl}/home\n\n${summary.body}` +
         (waHref ? `\n\n---\n\nWhen done, forward to Liezel on WhatsApp:\n${waHref}` : '');
-      const r = await emailProvider.send({
+      const r = await sendAndLog(sb, {
+        household_id: h.id,
         to: a.email,
         subject: `Sunday recap — ${summary.unclaimedCount} of ${summary.totalCount} need a helper`,
         body,
         html,
       });
       results.push({ to: a.email, ok: !r.error });
+      if (waHref) {
+        await logNotification(sb, {
+          household_id: h.id,
+          kind: 'wa_link_built',
+          channel: 'whatsapp',
+          recipient: liezelPhone,
+          subject: 'Sunday weekly summary (forward link)',
+        });
+      }
     }
   }
 
