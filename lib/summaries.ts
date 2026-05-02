@@ -95,6 +95,48 @@ export async function buildWeeklySummaryForUser(
  * Sunday-morning summary for Paula. Tells her how many slots still need a
  * helper and links straight into the unassigned-pickups admin page.
  */
+/**
+ * Full-week recap. Every pickup, claimed or open, with the assignee
+ * shown so a glance reads as "who's doing what this week." Used for
+ * Paula's Sunday email + the Liezel WhatsApp push from /home + the
+ * mid-week update email when assignments shift.
+ */
+export async function buildFullWeekSummary(
+  sb: SupabaseClient,
+  householdId: string
+): Promise<{ subject: string; body: string; unclaimedCount: number; totalCount: number }> {
+  const today = new Date();
+  const startISO = format(today, 'yyyy-MM-dd');
+  const endISO = format(addDays(today, 8), 'yyyy-MM-dd');
+  const slots = await fetchSlots(sb, householdId, startISO, endISO);
+  const sorted = [...slots].sort((a, b) => (a.date + a.pickup_time).localeCompare(b.date + b.pickup_time));
+  const unclaimed = slots.filter((s) => s.status === 'unclaimed');
+
+  const lines: string[] = [];
+  lines.push(`Pickups for this week (${slots.length} total, ${unclaimed.length} still open):`);
+  lines.push('');
+  let lastDate = '';
+  for (const s of sorted) {
+    if (s.date !== lastDate) {
+      if (lastDate) lines.push('');
+      lines.push(dateLabel(s.date).toUpperCase());
+      lastDate = s.date;
+    }
+    const time = s.pickup_time.slice(0, 5);
+    const kids = fmtKidNames(s);
+    const helperName = (s.assignment as any)?.profile?.full_name?.split(' ')[0] ?? null;
+    const tail = helperName ? `(${helperName})` : '(unassigned)';
+    lines.push(`${time}  ${kids} — ${s.title}  ${tail}`);
+  }
+
+  return {
+    subject: `Pickups this week — ${slots.length} total, ${unclaimed.length} open`,
+    body: lines.join('\n'),
+    unclaimedCount: unclaimed.length,
+    totalCount: slots.length,
+  };
+}
+
 export async function buildPaulaSundaySummary(
   sb: SupabaseClient,
   householdId: string,

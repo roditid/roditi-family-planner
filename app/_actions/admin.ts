@@ -236,11 +236,18 @@ export async function reassignSlotAction(formData: FormData) {
       actorUserId: ctx.user.id, subjectUserId: userId, kind: 'reassigned',
     });
   }
-  // Refresh Liezel's weekly summary so she has the latest assignments.
+  // Refresh Liezel's weekly summary + push admin update with full week
+  // summary + Liezel-WhatsApp forward button.
   if (!demoMode()) {
     const { sendLiezelSummaryUpdate } = await import('@/lib/notify-liezel');
+    const { sendAdminClaimUpdate } = await import('@/lib/notify-admins');
     const sb = supabaseServer();
     await sendLiezelSummaryUpdate(sb, ctx.household!.id);
+    await sendAdminClaimUpdate(sb, ctx.household!.id, {
+      actorName: ctx.profile?.full_name?.split(' ')[0] ?? null,
+      action: 'reassigned',
+      slotLabel: null,
+    });
   }
 
   revalidatePath('/admin');

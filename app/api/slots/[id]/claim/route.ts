@@ -6,8 +6,9 @@ import { claimSlot } from '@/lib/demo-store';
 import { recordEvent } from '@/lib/events';
 import { DEMO } from '@/lib/demo-store';
 import { emailProvider, renderClaimConfirmation } from '@/lib/notify';
-import { updateEventTitleForClaim } from '@/lib/google/calendar';
+import { updateEventTitleForClaim, addAttendeeToEvent } from '@/lib/google/calendar';
 import { sendLiezelSummaryUpdate } from '@/lib/notify-liezel';
+import { sendAdminClaimUpdate } from '@/lib/notify-admins';
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   if (demoMode()) {
@@ -65,15 +66,28 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
   // Update the source Google Calendar event's title to "[Helper] …" so
   // Paula sees the claim immediately on her own calendar. Best-effort.
+  // For admin claimers, ALSO add them as a Google attendee so they get
+  // a real calendar invite in their personal email — Dani sees it on
+  // his Meron calendar, Paula on her personal calendar, etc.
   if (slot?.source_event_id) {
     try {
-      const { data: profile } = await sb.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
+      const { data: profile } = await sb.from('profiles').select('full_name, email').eq('id', user.id).maybeSingle();
       const firstName = (profile?.full_name ?? '').split(/[\s(]/)[0] || null;
       if (firstName) {
         await updateEventTitleForClaim(sb, slot.household_id, slot.source_event_id, firstName);
       }
+      // Check if the claimer is an admin → add as Google attendee
+      const { data: membership } = await sb
+        .from('household_members')
+        .select('role')
+        .eq('household_id', slot.household_id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (membership?.role === 'admin' && profile?.email) {
+        await addAttendeeToEvent(sb, slot.household_id, slot.source_event_id, profile.email);
+      }
     } catch (e) {
-      console.error('calendar event title update failed', e);
+      console.error('calendar event title/attendee update failed', e);
     }
   }
 
@@ -99,7 +113,19 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   }
 
   // Refresh Liezel's weekly summary so she has the current picture.
-  if (slot?.household_id) await sendLiezelSummaryUpdate(sb, slot.household_id);
+  if (slot?.household_id) {
+    await sendLiezelSummaryUpdate(sb, slot.household_id);
+    // Mid-week claim update to admins — full week summary + Liezel
+    // forward button. Fires on every claim/unclaim/reassign so Paula
+    // and Dani always know who's on what.
+    const { data: profile } = await sb.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
+    const slotLabel = `${slot.title} ${(slot.pickup_time as string).slice(0, 5)} on ${slot.date}`;
+    await sendAdminClaimUpdate(sb, slot.household_id, {
+      actorName: profile?.full_name?.split(' ')[0] ?? null,
+      action: 'claimed',
+      slotLabel,
+    });
+  }
 
   return NextResponse.json({ ok: true });
 }

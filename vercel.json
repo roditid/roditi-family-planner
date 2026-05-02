@@ -7,7 +7,7 @@
     },
     {
       "path": "/api/cron/saturday-invites?secret=${CRON_SECRET}",
-      "schedule": "0 14 * * 6"
+      "schedule": "0 7 * * 6"
     },
     {
       "path": "/api/cron/sunday-summary?secret=${CRON_SECRET}",

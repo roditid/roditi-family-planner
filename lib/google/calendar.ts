@@ -112,6 +112,55 @@ export async function updateEventTitleForClaim(
 }
 
 /**
+ * Add an email as a Google Calendar attendee on the source event so the
+ * claimer gets a real calendar invite in their personal inbox + native
+ * Google reminders. Used when an admin (Paula or Dani) claims a slot —
+ * they keep the household calendar and want a parallel entry on their
+ * personal Google Calendar.
+ *
+ * Idempotent: if the email is already an attendee, it's a no-op. Failures
+ * are swallowed (logged) so a calendar hiccup doesn't break the claim.
+ */
+export async function addAttendeeToEvent(
+  sb: SupabaseClient,
+  householdId: string,
+  sourceEventId: string,
+  email: string
+) {
+  try {
+    const { data: ev } = await sb
+      .from('calendar_events')
+      .select('calendar_id, google_event_id')
+      .eq('id', sourceEventId)
+      .maybeSingle();
+    if (!ev) return { ok: false, error: 'event not found' };
+
+    const { client } = await authorizedClient(sb, householdId);
+    const cal = google.calendar({ version: 'v3', auth: client });
+    // Fetch existing attendees first so we don't overwrite.
+    const { data: existing } = await cal.events.get({
+      calendarId: ev.calendar_id,
+      eventId: ev.google_event_id,
+    });
+    const attendees = (existing.attendees ?? []) as { email?: string }[];
+    if (attendees.some((a) => (a.email ?? '').toLowerCase() === email.toLowerCase())) {
+      return { ok: true, already: true };
+    }
+    const merged = [...attendees, { email }];
+    await cal.events.patch({
+      calendarId: ev.calendar_id,
+      eventId: ev.google_event_id,
+      sendUpdates: 'all',
+      requestBody: { attendees: merged },
+    });
+    return { ok: true };
+  } catch (e: any) {
+    console.error('addAttendeeToEvent failed', e?.message ?? e);
+    return { ok: false, error: e?.message ?? 'unknown' };
+  }
+}
+
+/**
  * Pull events for the next `days` days across all selected calendars,
  * store them in calendar_events, and generate/refresh pickup_slots.
  *

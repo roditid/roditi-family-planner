@@ -10,6 +10,8 @@ import HelperAvatar from '@/components/HelperAvatar';
 import { RankBadge } from '@/components/RankBadge';
 import { getHelperRank } from '@/lib/ranks';
 import { fetchHelpers } from '@/lib/helpers';
+import SendSummaryToLiezel from '@/components/SendSummaryToLiezel';
+import { buildFullWeekSummary } from '@/lib/summaries';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,11 +67,17 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
   // Helpers list is only needed when the viewer is an admin (the modal
   // renders the reassign dropdown gated on isAdmin). Skip the fetch
   // otherwise so non-admins don't pay for it.
-  const [slots, weekSlots, rank, helpers] = await Promise.all([
+  // Admin extras: helper list (drives the inline reassign dropdown) +
+  // pre-built week summary (drives the "Send to Liezel" WhatsApp button
+  // at the bottom of the page) + Liezel's phone number for the wa.me
+  // link. Skipped for non-admin viewers so grandparents don't pay.
+  const [slots, weekSlots, rank, helpers, weekSummary, liezelPhone] = await Promise.all([
     fetchSlots(sb, ctx.household!.id, startISO, endISO),
     fetchSlots(sb, ctx.household!.id, weekStartISO, weekEndISO),
     getHelperRank(sb, ctx.household!.id, ctx.user.id),
     ctx.role === 'admin' ? fetchHelpers(sb, ctx.household!.id) : Promise.resolve([]),
+    ctx.role === 'admin' ? buildFullWeekSummary(sb, ctx.household!.id) : Promise.resolve(null),
+    ctx.role === 'admin' ? fetchLiezelPhone(sb, ctx.household!.id) : Promise.resolve(null),
   ]);
 
   // "This week" upcoming = today through Thursday, pickup_time hasn't
@@ -152,11 +160,25 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
         onlyMine={onlyMine}
       />
 
-      {ctx.role === 'admin' && (
-        <p className="text-xs text-ink-700/50 px-1 mt-4">
-          Admin? <Link href="/admin" className="underline">Open the dashboard →</Link>
-        </p>
+      {ctx.role === 'admin' && weekSummary && (
+        <SendSummaryToLiezel
+          liezelPhone={liezelPhone}
+          summaryBody={weekSummary.body}
+        />
       )}
     </div>
   );
+}
+
+async function fetchLiezelPhone(sb: any, householdId: string): Promise<string | null> {
+  const { data: members } = await sb
+    .from('household_members')
+    .select('helper_kind, profiles:user_id(full_name, phone_number)')
+    .eq('household_id', householdId);
+  const liezel = (members ?? [])
+    .filter((m: any) => m.helper_kind === 'nanny')
+    .map((m: any) => m.profiles)
+    .find((p: any) => p && (p.full_name ?? '').toLowerCase().startsWith('liezel'));
+  const phone = (liezel?.phone_number ?? '').replace(/[^\d]/g, '');
+  return phone || null;
 }

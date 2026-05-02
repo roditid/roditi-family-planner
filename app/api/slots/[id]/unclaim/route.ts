@@ -6,6 +6,7 @@ import { unclaimSlot, DEMO } from '@/lib/demo-store';
 import { recordEvent } from '@/lib/events';
 import { updateEventTitleForClaim } from '@/lib/google/calendar';
 import { sendLiezelSummaryUpdate } from '@/lib/notify-liezel';
+import { sendAdminClaimUpdate } from '@/lib/notify-admins';
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   if (demoMode()) {
@@ -59,7 +60,15 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   }
 
   // Refresh Liezel's weekly summary.
-  if (slot?.household_id) await sendLiezelSummaryUpdate(sb, slot.household_id);
+  if (slot?.household_id) {
+    await sendLiezelSummaryUpdate(sb, slot.household_id);
+    const { data: profile } = await sb.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
+    await sendAdminClaimUpdate(sb, slot.household_id, {
+      actorName: profile?.full_name?.split(' ')[0] ?? null,
+      action: 'unclaimed',
+      slotLabel: null,
+    });
+  }
 
   return NextResponse.json({ ok: true });
 }
