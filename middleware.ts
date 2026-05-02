@@ -10,15 +10,13 @@ const DEMO_COOKIE = 'demo_user_id';
 // env vars in Vercel; if FAMILY_PASSWORD is unset, the gate is disabled
 // (useful for local dev).
 const FAMILY_PWD_COOKIE = 'family_pwd';
+// Paths that bypass the family password gate. Note: this is route-name
+// based, NOT folder-name. Any path with a file extension (kid photos,
+// favicons, manifest icons) is also treated as public so the family-
+// password page itself can render its own assets without recursion.
 const PUBLIC_PATHS_FOR_GATE = [
   '/family-password',
   '/_next',
-  '/manifest.webmanifest',
-  '/icon',
-  '/apple-icon',
-  '/favicon',
-  '/kids',
-  '/helpers',
   '/api/calendar/webhook', // Google's webhook POSTs (no cookie possible)
   '/api/cron',             // CRON_SECRET-gated, has its own auth
   '/auth/callback',        // OAuth callbacks (no cookie yet)
@@ -38,7 +36,13 @@ export async function middleware(req: NextRequest) {
   const familyToken = process.env.FAMILY_AUTH_TOKEN;
   const gateEnabled = !!(familyPassword && familyToken);
   if (gateEnabled) {
-    const isPublic = PUBLIC_PATHS_FOR_GATE.some((p) => path === p || path.startsWith(p + '/'));
+    const matchesPublicPath = PUBLIC_PATHS_FOR_GATE.some((p) => path === p || path.startsWith(p + '/'));
+    // Static-asset heuristic: any path whose last segment has a file
+    // extension (foo.jpg, manifest.webmanifest, icon-256.png). Lets
+    // /kids/yali.jpg and /helpers/vovo.jpg through without a cookie,
+    // while /helpers (the route) still hits the gate.
+    const looksLikeStaticAsset = /\.[a-z0-9]+$/i.test(path);
+    const isPublic = matchesPublicPath || looksLikeStaticAsset;
     const cookieOk = req.cookies.get(FAMILY_PWD_COOKIE)?.value === familyToken;
     if (!isPublic && !cookieOk) {
       const url = req.nextUrl.clone();

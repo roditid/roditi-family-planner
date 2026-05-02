@@ -27,20 +27,47 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
 
-  const { error } = await sb.from('slot_assignments').insert({
+  // pickup_slots.status flip needs the admin client. RLS on pickup_slots
+  // only allows admins to write — without service-role here, a helper's
+  // claim would silently leave slot.status='unclaimed' and the chip
+  // would render as "open" for everyone except the helper who claimed
+  // it. We also use the admin client for the assignment swap so the
+  // override-then-insert sequence isn't blocked by RLS.
+  const admin = supabaseAdmin();
+
+  // Idempotent claim: there's a unique constraint on slot_assignments
+  // ("one_active") preventing two active rows per slot. If someone else
+  // (or a previous-claim path that didn't release) already has it, we
+  // override their row first. If the same user is already on it, we
+  // no-op. Without this, the second claim hit the DB with a duplicate-
+  // key error and the rest of the flow (confirmation email, .ics,
+  // admin notification) never ran.
+  const { data: existing } = await admin
+    .from('slot_assignments')
+    .select('id, assigned_to_user_id')
+    .eq('pickup_slot_id', params.id)
+    .eq('status', 'active')
+    .maybeSingle();
+  if (existing?.assigned_to_user_id === user.id) {
+    // Already claimed by this user — nothing to do, but make sure the
+    // slot.status reflects it.
+    await admin.from('pickup_slots').update({ status: 'claimed' }).eq('id', params.id);
+    return NextResponse.json({ ok: true, idempotent: true });
+  }
+  if (existing) {
+    await admin
+      .from('slot_assignments')
+      .update({ status: 'overridden', released_at: new Date().toISOString() })
+      .eq('id', existing.id);
+  }
+
+  const { error } = await admin.from('slot_assignments').insert({
     pickup_slot_id: params.id,
     assigned_to_user_id: user.id,
     status: 'active',
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-  // pickup_slots.status flip needs the admin client. RLS on pickup_slots
-  // only allows admins to write — without service-role here, a helper's
-  // claim would silently leave slot.status='unclaimed' and the chip
-  // would render as "open" for everyone except the helper who claimed
-  // it. (That was the "Tataia claimed but Levanah still sees it open"
-  // bug.)
-  const admin = supabaseAdmin();
   await admin.from('pickup_slots').update({ status: 'claimed' }).eq('id', params.id);
 
   // Hydrate the slot enough to send a confirmation email + log the event.
