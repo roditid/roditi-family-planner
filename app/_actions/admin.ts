@@ -218,16 +218,73 @@ export async function reassignSlotAction(formData: FormData) {
         status: 'active',
       });
       await sb.from('pickup_slots').update({ status: 'claimed' }).eq('id', slotId);
-      // Update the calendar event title to "[NewHelper] Activity - Kid".
-      const { data: slot } = await sb.from('pickup_slots').select('source_event_id').eq('id', slotId).maybeSingle();
-      const { data: profile } = await sb.from('profiles').select('full_name').eq('id', userId).maybeSingle();
-      if (slot?.source_event_id && profile?.full_name) {
-        const firstName = profile.full_name.split(/[\s(]/)[0] || null;
+
+      // Update the calendar event title + (for admin assignees) add as
+      // attendee on the source event so it appears on their personal
+      // Google Calendar. Same flow as the manual claim API.
+      const { data: slot } = await sb.from('pickup_slots').select('source_event_id, household_id').eq('id', slotId).maybeSingle();
+      const { data: assigneeProfile } = await sb
+        .from('profiles')
+        .select('full_name, email, email_enabled')
+        .eq('id', userId)
+        .maybeSingle();
+      const { data: assigneeMembership } = await sb
+        .from('household_members')
+        .select('role')
+        .eq('household_id', ctx.household!.id)
+        .eq('user_id', userId)
+        .maybeSingle();
+      const assigneeIsAdmin = assigneeMembership?.role === 'admin';
+
+      if (slot?.source_event_id && assigneeProfile?.full_name) {
+        const firstName = assigneeProfile.full_name.split(/[\s(]/)[0] || null;
         if (firstName) {
           try {
-            const { updateEventTitleForClaim } = await import('@/lib/google/calendar');
+            const { updateEventTitleForClaim, addAttendeeToEvent } = await import('@/lib/google/calendar');
             await updateEventTitleForClaim(sb, ctx.household!.id, slot.source_event_id, firstName);
+            if (assigneeIsAdmin && assigneeProfile?.email) {
+              await addAttendeeToEvent(
+                sb, ctx.household!.id, slot.source_event_id, assigneeProfile.email,
+                { sendUpdates: 'none' }
+              );
+            }
           } catch (e) { console.error('calendar update failed', e); }
+        }
+      }
+
+      // Send the rich confirmation email to the new assignee — same
+      // body helpers/admins receive on direct claim.
+      if (assigneeProfile?.email && assigneeProfile?.email_enabled !== false) {
+        try {
+          const { data: hydrated } = await sb
+            .from('pickup_slots')
+            .select(`*, child:children(*), activity:activities(*),
+              pickup_location:pickup_location_id(*),
+              via_location:via_location_id(*),
+              destination_location:destination_location_id(*)`)
+            .eq('id', slotId)
+            .maybeSingle();
+          if (hydrated) {
+            const extraIds = ((hydrated as any).additional_child_ids as string[] | null) ?? [];
+            let additional_children: any[] = [];
+            if (extraIds.length > 0) {
+              const { data: kids } = await sb.from('children').select('*, school_location:school_location_id(*)').in('id', extraIds);
+              additional_children = kids ?? [];
+            }
+            const fullSlot = { ...hydrated, additional_children };
+            const { renderClaimConfirmation } = await import('@/lib/notify');
+            const { sendAndLog } = await import('@/lib/notify-log');
+            const { subject, body, html } = renderClaimConfirmation(fullSlot as any, assigneeProfile.full_name ?? null);
+            await sendAndLog(sb, {
+              household_id: ctx.household!.id,
+              to: assigneeProfile.email,
+              subject, body, html,
+              actor_user_id: userId,
+              slot_id: slotId,
+            });
+          }
+        } catch (e) {
+          console.error('reassign confirmation email failed', e);
         }
       }
     }

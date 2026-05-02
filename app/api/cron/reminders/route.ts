@@ -42,21 +42,18 @@ export async function GET(req: NextRequest) {
       if (!profile.email_enabled || !profile.email) continue;
 
       const { subject, body, html } = renderReminder(slot);
-      const send = await emailProvider.send({ to: profile.email, subject, body, html });
-
-      await sb.from('notification_logs').insert({
+      const { sendAndLog } = await import('@/lib/notify-log');
+      const send = await sendAndLog(sb, {
         household_id: h.id,
-        pickup_slot_id: slot.id,
-        to_user_id: profile.id,
-        channel: 'email',
-        to_address: profile.email,
-        subject,
-        body,
-        status: send.error ? 'failed' : 'sent',
-        provider_id: send.id,
-        error: send.error,
-        sent_at: send.error ? null : new Date().toISOString(),
+        to: profile.email,
+        subject, body, html,
+        actor_user_id: profile.id,
+        slot_id: slot.id,
       });
+
+      // Legacy notification_logs insert removed — sendAndLog above
+      // already writes to the new notification_events table that
+      // /admin/activity reads from.
 
       if (!send.error) {
         await sb.from('pickup_slots').update({ reminder_sent_at: new Date().toISOString() }).eq('id', slot.id);
@@ -88,7 +85,9 @@ export async function GET(req: NextRequest) {
         for (const a of admins ?? []) {
           const p: any = (a as any).profiles;
           if (!p?.email) continue;
-          await emailProvider.send({
+          const { sendAndLog: log2 } = await import('@/lib/notify-log');
+          await log2(sb, {
+            household_id: h.id,
             to: p.email,
             subject: `Adam — Last day of Gan in 1 week (${row.date})`,
             body: [

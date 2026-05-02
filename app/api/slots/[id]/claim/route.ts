@@ -137,7 +137,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       const extraIds = (slot.additional_child_ids as string[] | null) ?? [];
       let additional_children: any[] = [];
       if (extraIds.length > 0) {
-        const { data: kids } = await sb.from('children').select('*').in('id', extraIds);
+        const { data: kids } = await sb.from('children').select('*, school_location:school_location_id(*)').in('id', extraIds);
         additional_children = kids ?? [];
       }
       const hydrated = { ...slot, additional_children };
@@ -145,7 +145,14 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       // No .ics attachment — admins are added as Google attendees above
       // (the event lands on their personal calendar natively); helpers
       // don't manage personal calendars for pickups.
-      await emailProvider.send({ to: profile.email, subject, body, html });
+      const { sendAndLog } = await import('@/lib/notify-log');
+      await sendAndLog(sb, {
+        household_id: slot.household_id,
+        to: profile.email,
+        subject, body, html,
+        actor_user_id: user.id,
+        slot_id: slot.id,
+      });
     }
   } catch (e) {
     console.error('claim confirmation email failed', e);

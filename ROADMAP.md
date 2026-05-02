@@ -18,6 +18,32 @@ revisit later if/when Paula wants to upgrade.
 - Maybe surface tomorrow's prep list on /home as a card so anyone who
   opens the website that evening sees what to pack.
 
+### 0b. Backpack info — defer for now
+**Why:** Per-activity / per-event "what to pack" notes are functional
+(judo uniform, fancy clothes for Pesach, etc.) but the experience
+hasn't been pushed yet. Keep the existing backpack cron at 20:00 IL
+emailing Paula with a tap-to-WhatsApp Liezel button.
+
+**What to build (when revisited):**
+- Editable per-event pack notes from the slot detail modal (admin-only)
+- Surface tomorrow's full backpack list on /home as a card
+- Pin the backpack note onto the helper's morning reminder when
+  packing items have been recorded for that pickup
+
+### 0c. Babysitter hours tracker — future feature
+**Why:** Liezel (and any future babysitters) work variable hours. Today
+there's no place to log hours worked → invoice / payroll lives outside
+the app.
+
+**What to build:**
+- "Hours" admin tab listing each pickup the babysitter completed plus
+  any extra household hours Paula adds manually.
+- Per-week / per-month roll-up with a CSV export.
+- Optional: derive hours automatically from claimed pickup_time +
+  expected duration (configurable per activity).
+- Per-babysitter hourly rate stored on profile so the roll-up shows
+  "12h × ₪50 = ₪600 this week".
+
 
 ### 1. Dedicated kids' Google Calendar (single source of truth)
 **Why:** Paula wants a separate email account for the kids' events so it's

@@ -19,7 +19,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { emailProvider } from '@/lib/notify';
+import { sendAndLog } from '@/lib/notify-log';
 import { buildBackpackReminder, buildPrepDayMessage } from '@/lib/summaries';
 
 export async function GET(req: NextRequest) {
@@ -65,7 +65,8 @@ export async function GET(req: NextRequest) {
       const html = `<pre style="font:16px/1.5 system-ui">${escapeHtml(backpack.body)}</pre>` +
         (waHref ? `<p style="font:14px/1.5 system-ui;margin-top:1.5em"><a href="${waHref}" style="display:inline-block;background:#25D366;color:#fff;padding:12px 18px;border-radius:12px;text-decoration:none;font-weight:600">Send to Liezel on WhatsApp →</a></p>` : '');
       for (const a of admins) {
-        const r = await emailProvider.send({
+        const r = await sendAndLog(sb, {
+          household_id: h.id,
           to: a.email,
           subject: backpack.subject,
           body: backpack.body + (waHref ? `\n\nTap to send to Liezel on WhatsApp:\n${waHref}` : ''),
@@ -85,7 +86,8 @@ export async function GET(req: NextRequest) {
       const html = `<pre style="font:16px/1.5 system-ui">${escapeHtml(prep.body)}</pre>` +
         (waHref ? `<p style="font:14px/1.5 system-ui;margin-top:1.5em"><a href="${waHref}" style="display:inline-block;background:#25D366;color:#fff;padding:12px 18px;border-radius:12px;text-decoration:none;font-weight:600">Send to Liezel on WhatsApp →</a></p>` : '');
       for (const a of admins) {
-        const r = await emailProvider.send({
+        const r = await sendAndLog(sb, {
+          household_id: h.id,
           to: a.email,
           subject: prep.subject,
           body: prep.body + (waHref ? `\n\nTap to send to Liezel on WhatsApp:\n${waHref}` : ''),

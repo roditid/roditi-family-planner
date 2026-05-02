@@ -320,11 +320,22 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
   let eventsSeen = 0;
   let slotsCreated = 0;
 
-  // Load children + activities for matching.
+  // Load children + activities + locations for matching.
   const { data: children } = await sb
     .from('children')
     .select('id, name, color, school_location_id, home_location_id, gan_dismissal_time, household_id')
     .eq('household_id', householdId);
+
+  // Pre-load all of the household's saved locations so we can try to
+  // match a calendar event's free-text location against an existing
+  // entry. If we find a match, the slot links to the structured row
+  // (door codes, contact phone, hours come along automatically). Else
+  // we fall back to storing the raw text on slot.via_location_text.
+  const { data: householdLocations } = await sb
+    .from('locations')
+    .select('id, label, street, city, lat, lng')
+    .eq('household_id', householdId);
+  const allLocations = householdLocations ?? [];
 
   const { data: activities } = await sb
     .from('activities')
@@ -578,11 +589,22 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
       const slotPickupLoc = isOffGan || isMorningFromHome || isHouseholdFromHome
         ? (childRecord.home_location_id ?? null)
         : (childRecord.school_location_id ?? match.activity?.default_pickup_location_id ?? null);
-      const slotViaLoc = match.activity?.default_destination_location_id ?? null;
-      // When the activity has no structured destination (one-off events like
-      // a school picnic, birthdays), fall back to the calendar event's
-      // free-text location so the helper still sees where to go.
-      const slotViaText = !slotViaLoc && ev.location ? ev.location : null;
+      // Resolve the via (activity) location:
+      //   1. activity row's default destination wins if set
+      //   2. otherwise, try to match the event's free-text location
+      //      against the household's saved locations — if we find a
+      //      match (by label or street/city), link to that location
+      //      so the helper picks up door codes / contact phone for
+      //      free.
+      //   3. otherwise, store the raw text as a fallback so the helper
+      //      still sees an address.
+      let slotViaLoc = match.activity?.default_destination_location_id ?? null;
+      let slotViaText: string | null = null;
+      if (!slotViaLoc && ev.location) {
+        const matched = matchLocationByText(ev.location, allLocations);
+        if (matched) slotViaLoc = matched.id;
+        else slotViaText = ev.location;
+      }
       // Morning-from-home: drop off at the kid's Gan AFTER the event.
       // Otherwise (household events, regular activities, off-Gan): drop
       // off at home.
@@ -742,12 +764,19 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
                 const extraIds = (hydratedSlot.additional_child_ids as string[] | null) ?? [];
                 let additional_children: any[] = [];
                 if (extraIds.length > 0) {
-                  const { data: kids } = await sb.from('children').select('*').in('id', extraIds);
+                  const { data: kids } = await sb.from('children').select('*, school_location:school_location_id(*)').in('id', extraIds);
                   additional_children = kids ?? [];
                 }
                 const fullSlot = { ...hydratedSlot, additional_children };
                 const { subject, body, html } = renderClaimConfirmation(fullSlot as any, claimerProfile.full_name ?? null);
-                await emailProvider.send({ to: claimerProfile.email, subject, body, html });
+                const { sendAndLog } = await import('../notify-log');
+                await sendAndLog(sb, {
+                  household_id: householdId,
+                  to: claimerProfile.email,
+                  subject, body, html,
+                  actor_user_id: prefixedHelperId,
+                  slot_id: slotRow.id,
+                });
               }
 
               await sendLiezelSummaryUpdate(sb, householdId);
@@ -783,6 +812,41 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
 
 function matches(title: string, kw: string) {
   return title.toLowerCase().includes(kw.toLowerCase());
+}
+
+/**
+ * Try to match a calendar event's free-text location field against
+ * one of the household's saved Locations rows. Strategy (case-/punct-
+ * insensitive):
+ *   1. Exact label match
+ *   2. The text contains the location's street + city as a substring
+ *      (or vice versa) — Google's location often pastes a full address
+ *      that wraps the saved location's address
+ *   3. Substring overlap on label + street tokens
+ *
+ * Returns the matched location row, or null when nothing's close enough.
+ */
+interface SavedLocation { id: string; label: string; street: string | null; city: string | null }
+function matchLocationByText(text: string, locations: SavedLocation[]): SavedLocation | null {
+  const norm = (s: string | null | undefined) => (s ?? '').toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  const target = norm(text);
+  if (!target) return null;
+  // 1. exact label
+  for (const loc of locations) {
+    if (norm(loc.label) === target) return loc;
+  }
+  // 2. address substring either way
+  for (const loc of locations) {
+    const addr = norm([loc.street, loc.city].filter(Boolean).join(' '));
+    if (addr && (target.includes(addr) || addr.includes(target))) return loc;
+  }
+  // 3. label substring (e.g. "Drahi" matches "Drahi · Neve Tzedek
+  //    Community Center")
+  for (const loc of locations) {
+    const lbl = norm(loc.label);
+    if (lbl && lbl.length >= 4 && target.includes(lbl)) return loc;
+  }
+  return null;
 }
 
 // ─── Special calendar-event patterns ────────────────────────────────────

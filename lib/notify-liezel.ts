@@ -10,12 +10,11 @@
  * no email/phone on file (so the dev-mode database doesn't error).
  */
 import { SupabaseClient } from '@supabase/supabase-js';
-import { emailProvider } from './notify';
+import { sendAndLog } from './notify-log';
 import { buildWeeklySummaryForUser } from './summaries';
 
 export async function sendLiezelSummaryUpdate(sb: SupabaseClient, householdId: string) {
   try {
-    // Find Liezel's profile in this household
     const { data: members } = await sb
       .from('household_members')
       .select('profiles:user_id(id, full_name, email, email_enabled)')
@@ -28,7 +27,7 @@ export async function sendLiezelSummaryUpdate(sb: SupabaseClient, householdId: s
 
     const firstName = (liezel.full_name ?? '').split(' ')[0] || 'Liezel';
     const { subject, body } = await buildWeeklySummaryForUser(sb, householdId, liezel.id, firstName);
-    await emailProvider.send({ to: liezel.email, subject, body });
+    await sendAndLog(sb, { household_id: householdId, to: liezel.email, subject, body });
   } catch (e) {
     console.error('Liezel summary update failed', e);
   }

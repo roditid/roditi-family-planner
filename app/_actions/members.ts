@@ -95,7 +95,9 @@ export async function sendOneInviteAction(formData: FormData) {
   const url = `${baseUrl}/i/${profile.magic_token}`;
   const first = (profile.full_name ?? '').split(' ')[0] || 'there';
 
-  await emailProvider.send({
+  const { sendAndLog } = await import('@/lib/notify-log');
+  await sendAndLog(sb, {
+    household_id: ctx.household!.id,
     to: profile.email,
     subject: `${first} — your personal pickup planner link`,
     body: [
