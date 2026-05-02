@@ -5,7 +5,6 @@ import { demoMode } from '@/lib/demo-session';
 import { allUsers } from '@/lib/demo-store';
 import CopyLink from '@/components/CopyLink';
 import { sendInvitesNowAction } from '@/app/_actions/invites';
-import FireSaturdayButton from '@/components/FireSaturdayButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,17 +51,6 @@ export default async function InvitesAdmin() {
         </form>
       </div>
 
-      <div className="card p-5 flex items-center gap-3 justify-between flex-wrap bg-sage-500/5 border-sage-500/30">
-        <div>
-          <div className="font-medium">Fire today's Saturday roundup now</div>
-          <div className="text-sm text-ink-700/60">
-            Sends the grandparent invites <i>and</i> the admin "Helper roundup"
-            email (with the WhatsApp share-to-group button + family password).
-            Useful when the Saturday cron didn't fire because of a late deploy.
-          </div>
-        </div>
-        <FireSaturdayButton />
-      </div>
 
       <div className="card divide-y divide-black/5">
         {helpers.map((h) => {

@@ -18,16 +18,6 @@ revisit later if/when Paula wants to upgrade.
 - Maybe surface tomorrow's prep list on /home as a card so anyone who
   opens the website that evening sees what to pack.
 
-### 0a. Remove the manual "Fire Saturday flow" button after a clean run
-**Why:** It's a nice-to-have escape hatch for the cron-missed case,
-but once you've fired it once and the cron-driven Saturday is reliable,
-the button is admin-page clutter.
-
-**What to do:**
-- Confirm next Saturday's cron fires correctly at 10:00 IL (check
-  /admin/activity that morning).
-- Then delete the button + sendSaturdayNowAction. The grandparent-only
-  "Send invites" button stays — it's still useful for ad-hoc resends.
 
 ### 1. Dedicated kids' Google Calendar (single source of truth)
 **Why:** Paula wants a separate email account for the kids' events so it's
