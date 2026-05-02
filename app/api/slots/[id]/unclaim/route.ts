@@ -59,15 +59,35 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     }
   }
 
-  // Refresh Liezel's weekly summary.
+  // Refresh Liezel's weekly summary always. Admin claim notification
+  // ONLY fires when a helper unclaims — admin actions stay private
+  // (Paula/Dani independent).
   if (slot?.household_id) {
     await sendLiezelSummaryUpdate(sb, slot.household_id);
-    const { data: profile } = await sb.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
-    await sendAdminClaimUpdate(sb, slot.household_id, {
-      actorName: profile?.full_name?.split(' ')[0] ?? null,
-      action: 'unclaimed',
-      slotLabel: null,
-    });
+    const { data: membership } = await sb
+      .from('household_members')
+      .select('role')
+      .eq('household_id', slot.household_id)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    const actorIsAdmin = membership?.role === 'admin';
+    if (!actorIsAdmin) {
+      const { data: profile } = await sb.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
+      const { data: slotForLabel } = await sb
+        .from('pickup_slots')
+        .select('title, date, pickup_time, child:children(name)')
+        .eq('id', params.id)
+        .maybeSingle();
+      const s = slotForLabel as any;
+      const slotLabel = s
+        ? `${s.child?.name ?? '?'} · ${s.title} · ${s.date} ${(s.pickup_time as string).slice(0, 5)}`
+        : null;
+      await sendAdminClaimUpdate(sb, slot.household_id, {
+        actorName: profile?.full_name?.split(' ')[0] ?? null,
+        action: 'unclaimed',
+        slotLabel,
+      });
+    }
   }
 
   return NextResponse.json({ ok: true });

@@ -48,14 +48,22 @@ export async function sendAdminClaimUpdate(
 
     const verb = context.action === 'claimed' ? 'claimed'
                : context.action === 'unclaimed' ? 'released'
-               : 'was reassigned';
+               : 'reassigned';
     const headline = context.actorName && context.slotLabel
       ? `${context.actorName} ${verb} ${context.slotLabel}.`
-      : `An assignment changed.`;
+      : context.actorName
+        ? `${context.actorName} ${verb} a pickup.`
+        : `An assignment changed.`;
 
-    const subject = isLite
-      ? `Pickup ${context.action}: ${context.actorName ?? 'someone'} → ${context.slotLabel ?? 'a slot'}`
-      : `Pickup update — ${summary!.unclaimedCount} of ${summary!.totalCount} open`;
+    // Subject uses the descriptive form too — "Paula reassigned Adam ·
+    // Soccer · 16:15" rather than a generic "Pickup reassigned". Both
+    // lite (suppression window) and full modes share the subject; the
+    // body content is what differs.
+    const subject = context.actorName && context.slotLabel
+      ? `${context.actorName} ${verb} ${context.slotLabel}`
+      : context.actorName
+        ? `${context.actorName} ${verb} a pickup`
+        : `A pickup ${context.action === 'claimed' ? 'was claimed' : context.action === 'unclaimed' ? 'was released' : 'was reassigned'}`;
 
     const html = isLite
       ? `<div style="font:15px/1.55 system-ui;color:#2a2a22">` +

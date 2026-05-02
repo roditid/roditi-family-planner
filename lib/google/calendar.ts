@@ -232,7 +232,8 @@ export async function addAttendeeToEvent(
   sb: SupabaseClient,
   householdId: string,
   sourceEventId: string,
-  email: string
+  email: string,
+  options: { sendUpdates?: 'all' | 'externalOnly' | 'none' } = {}
 ) {
   try {
     const { data: ev } = await sb
@@ -254,10 +255,15 @@ export async function addAttendeeToEvent(
       return { ok: true, already: true };
     }
     const merged = [...attendees, { email }];
+    // Default sendUpdates='none' so Google doesn't email the calendar
+    // owner (Paula) every time a new attendee joins. The claimer's
+    // personal Google Calendar still picks up the event because they're
+    // now on the attendee list — they just don't get a notification
+    // email from Google. Our system sends its own confirmation email.
     await cal.events.patch({
       calendarId: ev.calendar_id,
       eventId: ev.google_event_id,
-      sendUpdates: 'all',
+      sendUpdates: options.sendUpdates ?? 'none',
       requestBody: { attendees: merged },
     });
     // Log to notification feed (best effort).
@@ -696,8 +702,7 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
                 kind: 'claimed',
               });
 
-              // Hydrate the slot for the confirmation email + check role
-              // (only admins get the .ics calendar attachment).
+              // Hydrate slot + claimer profile + role.
               const { data: hydratedSlot } = await sb
                 .from('pickup_slots')
                 .select(`*, child:children(*), activity:activities(*),
@@ -719,6 +724,20 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
                 .maybeSingle();
               const claimerIsAdmin = claimerMembership?.role === 'admin';
 
+              // For admin claimers, add their personal email as a Google
+              // Calendar attendee on the source event with sendUpdates=
+              // 'none'. Their personal calendar shows the event natively
+              // without spamming the calendar owner.
+              if (claimerIsAdmin && claimerProfile?.email && eventRow!.id) {
+                try {
+                  await addAttendeeToEvent(sb, householdId, eventRow!.id, claimerProfile.email, { sendUpdates: 'none' });
+                } catch (e) {
+                  console.error('add admin attendee failed', e);
+                }
+              }
+
+              // Confirmation email — same format for everyone, no .ics
+              // (admins get the calendar event via the attendee path).
               if (hydratedSlot && claimerProfile?.email && claimerProfile?.email_enabled !== false) {
                 const extraIds = (hydratedSlot.additional_child_ids as string[] | null) ?? [];
                 let additional_children: any[] = [];
@@ -727,22 +746,23 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
                   additional_children = kids ?? [];
                 }
                 const fullSlot = { ...hydratedSlot, additional_children };
-                const { subject, body, html, attachments } = renderClaimConfirmation(fullSlot as any, claimerProfile.full_name ?? null);
-                await emailProvider.send({
-                  to: claimerProfile.email,
-                  subject, body, html,
-                  attachments: claimerIsAdmin ? attachments : undefined,
-                });
+                const { subject, body, html } = renderClaimConfirmation(fullSlot as any, claimerProfile.full_name ?? null);
+                await emailProvider.send({ to: claimerProfile.email, subject, body, html });
               }
 
               await sendLiezelSummaryUpdate(sb, householdId);
-              await sendAdminClaimUpdate(sb, householdId, {
-                actorName: claimerProfile?.full_name?.split(' ')[0] ?? null,
-                action: 'claimed',
-                slotLabel: hydratedSlot
-                  ? `${hydratedSlot.title} ${(hydratedSlot.pickup_time as string).slice(0, 5)} on ${hydratedSlot.date}`
-                  : null,
-              });
+              // Skip cross-admin notification when the claimer is an
+              // admin (Paula/Dani independent). Helper claims still
+              // notify admins so they have mid-week visibility.
+              if (!claimerIsAdmin) {
+                await sendAdminClaimUpdate(sb, householdId, {
+                  actorName: claimerProfile?.full_name?.split(' ')[0] ?? null,
+                  action: 'claimed',
+                  slotLabel: hydratedSlot
+                    ? `${(hydratedSlot as any).child?.name ?? '?'} · ${hydratedSlot.title} · ${hydratedSlot.date} ${(hydratedSlot.pickup_time as string).slice(0, 5)}`
+                    : null,
+                });
+              }
             }
           }
         } catch (e) {

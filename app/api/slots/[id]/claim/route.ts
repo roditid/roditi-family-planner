@@ -6,7 +6,7 @@ import { claimSlot } from '@/lib/demo-store';
 import { recordEvent } from '@/lib/events';
 import { DEMO } from '@/lib/demo-store';
 import { emailProvider, renderClaimConfirmation } from '@/lib/notify';
-import { updateEventTitleForClaim } from '@/lib/google/calendar';
+import { updateEventTitleForClaim, addAttendeeToEvent } from '@/lib/google/calendar';
 import { sendLiezelSummaryUpdate } from '@/lib/notify-liezel';
 import { sendAdminClaimUpdate } from '@/lib/notify-admins';
 
@@ -91,30 +91,49 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     });
   }
 
+  // Look up the claimer's profile + role once — used by every branch
+  // below.
+  const { data: profile } = await sb
+    .from('profiles')
+    .select('full_name, email, email_enabled')
+    .eq('id', user.id)
+    .maybeSingle();
+  const { data: membership } = slot?.household_id
+    ? await sb
+        .from('household_members')
+        .select('role')
+        .eq('household_id', slot.household_id)
+        .eq('user_id', user.id)
+        .maybeSingle()
+    : { data: null as any };
+  const claimerIsAdmin = membership?.role === 'admin';
+
   // Update the source Google Calendar event's title to "[Helper] …" so
-  // Paula sees the claim immediately on her own calendar. Best-effort.
-  // The claimer doesn't need to be added as a Google attendee — that
-  // triggered "event updated" emails to Paula (calendar owner) on every
-  // claim. Instead, the claim confirmation email below carries an .ics
-  // attachment so the claimer's email client offers Add-to-Calendar.
+  // both calendars (the household one and the claimer's personal one)
+  // show who's on the pickup. For ADMIN claimers, also add their email
+  // as a Google Calendar attendee with sendUpdates='none' — that pushes
+  // the event onto their personal calendar (paularoditi@gmail.com,
+  // daniel@meron.co) without triggering an "event updated" email to
+  // anyone else. Helpers stay off the attendee list (they manage their
+  // own calendar separately).
   if (slot?.source_event_id) {
     try {
-      const { data: profile } = await sb.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
       const firstName = (profile?.full_name ?? '').split(/[\s(]/)[0] || null;
       if (firstName) {
         await updateEventTitleForClaim(sb, slot.household_id, slot.source_event_id, firstName);
       }
+      if (claimerIsAdmin && profile?.email) {
+        await addAttendeeToEvent(sb, slot.household_id, slot.source_event_id, profile.email, { sendUpdates: 'none' });
+      }
     } catch (e) {
-      console.error('calendar event title update failed', e);
+      console.error('calendar update failed', e);
     }
   }
 
-  // Send a confirmation email to the helper. Best-effort; we don't want to
-  // fail the claim if the email provider is down or the helper has no email.
+  // Send the rich confirmation email to the claimer (admin or helper —
+  // same email format). Best-effort; failures don't block the claim.
   try {
-    const { data: profile } = await sb.from('profiles').select('full_name, email, email_enabled').eq('id', user.id).maybeSingle();
     if (slot && profile?.email && profile?.email_enabled !== false) {
-      // Stitch additional_children for the formatter
       const extraIds = (slot.additional_child_ids as string[] | null) ?? [];
       let additional_children: any[] = [];
       if (extraIds.length > 0) {
@@ -122,44 +141,36 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
         additional_children = kids ?? [];
       }
       const hydrated = { ...slot, additional_children };
-      const { subject, body, html, attachments } = renderClaimConfirmation(hydrated as any, profile.full_name ?? null);
-      // Only admins (Paula + Dani) get the .ics calendar attachment.
-      // Grandparents and Liezel get the rich confirmation email but
-      // not a calendar invite — they don't track pickups in personal
-      // Google Calendars.
-      const { data: membership } = await sb
-        .from('household_members')
-        .select('role')
-        .eq('household_id', slot.household_id)
-        .eq('user_id', user.id)
-        .maybeSingle();
-      const isAdmin = membership?.role === 'admin';
-      await emailProvider.send({
-        to: profile.email,
-        subject,
-        body,
-        html,
-        attachments: isAdmin ? attachments : undefined,
-      });
+      const { subject, body, html } = renderClaimConfirmation(hydrated as any, profile.full_name ?? null);
+      // No .ics attachment — admins are added as Google attendees above
+      // (the event lands on their personal calendar natively); helpers
+      // don't manage personal calendars for pickups.
+      await emailProvider.send({ to: profile.email, subject, body, html });
     }
   } catch (e) {
-    // Log only — do not surface email errors to the claim caller.
     console.error('claim confirmation email failed', e);
   }
 
-  // Refresh Liezel's weekly summary so she has the current picture.
+  // Cross-actor notifications:
+  //   • ALWAYS refresh Liezel's weekly summary so she has the current
+  //     picture (her email is unaffected by who claimed).
+  //   • SKIP the cross-admin claim email when an admin is the actor —
+  //     Paula and Dani are independent; Paula's claim shouldn't ping
+  //     Dani's inbox and vice versa. Only fire when a HELPER claims,
+  //     so admins still see helper claims mid-week.
   if (slot?.household_id) {
     await sendLiezelSummaryUpdate(sb, slot.household_id);
-    // Mid-week claim update to admins — full week summary + Liezel
-    // forward button. Fires on every claim/unclaim/reassign so Paula
-    // and Dani always know who's on what.
-    const { data: profile } = await sb.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
-    const slotLabel = `${slot.title} ${(slot.pickup_time as string).slice(0, 5)} on ${slot.date}`;
-    await sendAdminClaimUpdate(sb, slot.household_id, {
-      actorName: profile?.full_name?.split(' ')[0] ?? null,
-      action: 'claimed',
-      slotLabel,
-    });
+    if (!claimerIsAdmin) {
+      const childName = (slot as any).child?.name ?? null;
+      const slotLabel = childName
+        ? `${childName} · ${slot.title} · ${slot.date} ${(slot.pickup_time as string).slice(0, 5)}`
+        : `${slot.title} · ${slot.date} ${(slot.pickup_time as string).slice(0, 5)}`;
+      await sendAdminClaimUpdate(sb, slot.household_id, {
+        actorName: profile?.full_name?.split(' ')[0] ?? null,
+        action: 'claimed',
+        slotLabel,
+      });
+    }
   }
 
   return NextResponse.json({ ok: true });

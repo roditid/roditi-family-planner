@@ -236,18 +236,15 @@ export async function reassignSlotAction(formData: FormData) {
       actorUserId: ctx.user.id, subjectUserId: userId, kind: 'reassigned',
     });
   }
-  // Refresh Liezel's weekly summary + push admin update with full week
-  // summary + Liezel-WhatsApp forward button.
+  // Refresh Liezel's weekly summary so she has the current picture.
+  // No cross-admin email — reassign actions are by an admin, so
+  // notifying the OTHER admin would violate the "Paula and Dani are
+  // independent" rule. The slot_events log on /admin/activity still
+  // shows the change.
   if (!demoMode()) {
     const { sendLiezelSummaryUpdate } = await import('@/lib/notify-liezel');
-    const { sendAdminClaimUpdate } = await import('@/lib/notify-admins');
     const sb = supabaseServer();
     await sendLiezelSummaryUpdate(sb, ctx.household!.id);
-    await sendAdminClaimUpdate(sb, ctx.household!.id, {
-      actorName: ctx.profile?.full_name?.split(' ')[0] ?? null,
-      action: 'reassigned',
-      slotLabel: null,
-    });
   }
 
   revalidatePath('/admin');
