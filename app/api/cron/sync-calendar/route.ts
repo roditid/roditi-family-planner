@@ -15,7 +15,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { syncCalendar } from '@/lib/google/calendar';
+import { syncCalendar, renewWatchIfExpiring } from '@/lib/google/calendar';
 import { generateDefaultSlots } from '@/lib/defaults';
 
 export async function GET(req: NextRequest) {
@@ -32,11 +32,15 @@ export async function GET(req: NextRequest) {
     try {
       const sync = await syncCalendar(sb, h.id, 30);
       const defaults = await generateDefaultSlots(sb, h.id, 30);
+      // Renew the live-sync watch if expiring within 24h. Idempotent —
+      // skips when there's no watch or the watch has plenty of life.
+      const watch = await renewWatchIfExpiring(sb, h.id);
       results.push({
         household: h.id,
         events: sync.eventsSeen,
         slots: sync.slotsCreated,
         defaults: defaults.slotsCreated,
+        watch_renewed: !('skipped' in watch && watch.skipped),
       });
     } catch (e: any) {
       results.push({ household: h.id, error: e?.message ?? String(e) });

@@ -112,6 +112,113 @@ export async function updateEventTitleForClaim(
 }
 
 /**
+ * Register a Google Calendar push notification (watch) for the household's
+ * primary selected calendar. Google POSTs to /api/calendar/webhook on
+ * every event change, and we re-sync within seconds. Watch lasts up to 7
+ * days; the daily sync cron renews it when expiry is within 24h.
+ *
+ * Returns the channel/resource ids and expiration so the caller can
+ * persist them on connected_calendars.
+ */
+export async function registerCalendarWatch(
+  sb: SupabaseClient,
+  householdId: string
+): Promise<{ ok: boolean; channelId?: string; resourceId?: string; expiration?: string; error?: string }> {
+  try {
+    const { client, conn } = await authorizedClient(sb, householdId);
+    const cal = google.calendar({ version: 'v3', auth: client });
+    const calIds: string[] = Array.isArray(conn.selected_calendar_ids)
+      ? conn.selected_calendar_ids
+      : JSON.parse(conn.selected_calendar_ids || '[]');
+    const targetCalId = calIds[0] ?? 'primary';
+    const channelId = (globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2));
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://roditi.ch';
+    const webhookUrl = `${baseUrl}/api/calendar/webhook`;
+
+    const { data } = await cal.events.watch({
+      calendarId: targetCalId,
+      requestBody: {
+        id: channelId,
+        type: 'web_hook',
+        address: webhookUrl,
+        // Stash the household id in token so the webhook handler can
+        // look up which household to re-sync without a DB roundtrip.
+        token: `household=${householdId}`,
+      },
+    });
+    const expirationMs = data.expiration ? Number(data.expiration) : Date.now() + 6 * 24 * 3600 * 1000;
+    const expIso = new Date(expirationMs).toISOString();
+
+    await sb.from('connected_calendars').update({
+      watch_channel_id: channelId,
+      watch_resource_id: data.resourceId ?? null,
+      watch_expires_at: expIso,
+    }).eq('id', conn.id);
+
+    return { ok: true, channelId, resourceId: data.resourceId ?? undefined, expiration: expIso };
+  } catch (e: any) {
+    console.error('registerCalendarWatch failed', e?.message ?? e);
+    return { ok: false, error: e?.message ?? 'unknown' };
+  }
+}
+
+/**
+ * Stop an active Google Calendar push notification channel. Called when
+ * Paula reconnects a different calendar or before re-registering a watch.
+ */
+export async function stopCalendarWatch(
+  sb: SupabaseClient,
+  householdId: string
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { data: conn } = await sb
+      .from('connected_calendars')
+      .select('id, watch_channel_id, watch_resource_id, access_token, refresh_token, token_expires_at')
+      .eq('household_id', householdId)
+      .single();
+    if (!conn?.watch_channel_id || !conn.watch_resource_id) return { ok: true };
+
+    const client = oauthClient();
+    client.setCredentials({
+      access_token: conn.access_token ?? undefined,
+      refresh_token: conn.refresh_token ?? undefined,
+      expiry_date: conn.token_expires_at ? new Date(conn.token_expires_at).getTime() : undefined,
+    });
+    const cal = google.calendar({ version: 'v3', auth: client });
+    await cal.channels.stop({
+      requestBody: { id: conn.watch_channel_id, resourceId: conn.watch_resource_id },
+    });
+    await sb.from('connected_calendars').update({
+      watch_channel_id: null,
+      watch_resource_id: null,
+      watch_expires_at: null,
+    }).eq('id', conn.id);
+    return { ok: true };
+  } catch (e: any) {
+    console.error('stopCalendarWatch failed', e?.message ?? e);
+    return { ok: false, error: e?.message ?? 'unknown' };
+  }
+}
+
+/**
+ * Renew the watch if it's within 24h of expiry. Called by the daily sync
+ * cron — keeps the live-sync channel alive without manual intervention.
+ */
+export async function renewWatchIfExpiring(sb: SupabaseClient, householdId: string) {
+  const { data: conn } = await sb
+    .from('connected_calendars')
+    .select('watch_expires_at')
+    .eq('household_id', householdId)
+    .single();
+  if (!conn?.watch_expires_at) return { ok: true, skipped: true };
+  const expiresMs = new Date(conn.watch_expires_at).getTime();
+  const oneDayFromNow = Date.now() + 24 * 3600 * 1000;
+  if (expiresMs > oneDayFromNow) return { ok: true, skipped: true };
+  await stopCalendarWatch(sb, householdId);
+  return registerCalendarWatch(sb, householdId);
+}
+
+/**
  * Add an email as a Google Calendar attendee on the source event so the
  * claimer gets a real calendar invite in their personal inbox + native
  * Google reminders. Used when an admin (Paula or Dani) claims a slot —

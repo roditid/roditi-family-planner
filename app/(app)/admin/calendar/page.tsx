@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/permissions';
 import { supabaseServer } from '@/lib/supabase/server';
 import { demoMode } from '@/lib/demo-session';
 import { format } from 'date-fns';
+import LiveSyncToggle from '@/components/LiveSyncToggle';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,12 +79,23 @@ export default async function CalendarSettings({ searchParams }: { searchParams:
               {conn.last_sync_at ? format(new Date(conn.last_sync_at), 'MMM d, HH:mm') : 'never'}
             </Field>
             <Field label="Status">{conn.last_sync_status ?? '—'}</Field>
+            <Field label="Live sync">
+              {conn.watch_expires_at ? (
+                <span className="text-sage-700 font-medium">
+                  ✓ Active until {format(new Date(conn.watch_expires_at), 'MMM d, HH:mm')}
+                </span>
+              ) : (
+                <span className="text-ink-700/55">Off — daily sync only</span>
+              )}
+            </Field>
+            <Field label="Channel">{conn.watch_channel_id ? `${conn.watch_channel_id.slice(0, 8)}…` : '—'}</Field>
           </div>
 
           <div className="pt-4 border-t border-black/5 flex gap-2 flex-wrap">
             <form action="/api/calendar/sync" method="post">
               <button className="btn-soft">↻ Sync now</button>
             </form>
+            <LiveSyncToggle enabled={!!conn.watch_expires_at} />
             <a href="/api/calendar/connect" className="btn-ghost">Reconnect Google account</a>
             <form action="/api/calendar/reset" method="post" className="ml-auto">
               <button className="btn-ghost text-coral-600 hover:bg-coral-400/10" title="Wipes ALL calendar-sourced events + slots, then re-syncs from the connected calendar. Use after switching the connected account.">
