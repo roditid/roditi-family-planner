@@ -22,14 +22,31 @@ export async function sendInvitesNowAction() {
 
 /**
  * Manually fire the FULL Saturday flow right now: grandparent invites
- * + admin "Helper roundup" email. Useful when a deploy lands after
- * 10:00 IL on Saturday and the cron didn't pick up the new schedule.
+ * + admin "Helper roundup" email. Returns counts so the UI can show
+ * "sent N invites + N admin emails" instead of leaving the user
+ * wondering whether anything happened.
  */
-export async function sendSaturdayNowAction() {
-  const ctx = await requireAdmin();
-  await sendInvitesForHousehold(ctx.household!.id);
-  await sendAdminHelperRoundup(ctx.household!.id);
-  revalidatePath('/admin/invites');
+export async function sendSaturdayNowAction(): Promise<{
+  ok: boolean;
+  invitesSent: number;
+  adminSent: number;
+  error?: string;
+}> {
+  try {
+    const ctx = await requireAdmin();
+    const sent = await sendInvitesForHousehold(ctx.household!.id);
+    const roundup = await sendAdminHelperRoundup(ctx.household!.id);
+    revalidatePath('/admin/invites');
+    revalidatePath('/admin/activity');
+    return {
+      ok: true,
+      invitesSent: sent.filter((s) => s.ok).length,
+      adminSent: roundup.sent ?? 0,
+    };
+  } catch (e: any) {
+    console.error('sendSaturdayNowAction failed', e);
+    return { ok: false, invitesSent: 0, adminSent: 0, error: e?.message ?? String(e) };
+  }
 }
 
 /**
@@ -142,15 +159,22 @@ export async function sendAdminHelperRoundup(householdId: string) {
   const passwordBlock = familyPwd
     ? `<p style="background:#fef3e7;border-left:3px solid #E89070;padding:10px 14px;margin:1.5em 0;font:14px/1.5 system-ui"><b>Family password</b> (share to the group with the link): <code style="background:#fff;padding:2px 6px;border-radius:4px">${escapeHtml(familyPwd)}</code></p>`
     : '';
+  // Saturday email is intentionally light — just nudge the family
+  // group + share the password. The full weekly breakdown lands in
+  // Sunday morning's email so admins aren't reading the same list
+  // two mornings in a row.
   const html = `<div style="font:15px/1.55 system-ui;color:#2a2a22">` +
-    `<p>The grandparents just got their personal claim links by email.</p>` +
-    `<p>Forward the family group chat the nudge below to keep everyone in sync:</p>` +
+    `<p>The grandparents just got their personal claim links.</p>` +
+    `<p><b>${summary.unclaimedCount}</b> of ${summary.totalCount} pickup${summary.totalCount === 1 ? '' : 's'} need a helper this week.</p>` +
+    `<p>Forward this nudge to the family group chat so everyone sees it:</p>` +
     `<p style="margin-top:1.5em"><a href="${waHref}" style="display:inline-block;background:#25D366;color:#fff;padding:12px 18px;border-radius:12px;text-decoration:none;font-weight:600">Share to family group on WhatsApp →</a></p>` +
     passwordBlock +
-    `<pre style="background:#f6f3ec;padding:14px;border-radius:8px;font:14px/1.5 system-ui;white-space:pre-wrap;margin-top:1.5em">${escapeHtml(summary.body)}</pre>` +
+    `<p style="color:#888;font-size:13px;margin-top:1.5em">You'll get the full week breakdown tomorrow morning — the Sunday recap. For now, just nudge the family.</p>` +
     `<p style="margin-top:1.5em">Open the dashboard: <a href="${baseUrl}/home">${baseUrl}/home</a></p>` +
     `</div>`;
-  const body = `${groupMessage}\n\n---\n\n${summary.body}\n\nOpen the dashboard: ${baseUrl}/home`;
+  const body = `${groupMessage}\n\n---\n\n${summary.unclaimedCount} of ${summary.totalCount} pickups need a helper this week.` +
+    `\n\nThe full breakdown will land in tomorrow's Sunday recap email — today, just share the nudge above to the family group.` +
+    `\n\nOpen the dashboard: ${baseUrl}/home`;
 
   let sent = 0;
   for (const a of admins) {

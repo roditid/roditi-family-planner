@@ -4,7 +4,8 @@ import { supabaseServer } from '@/lib/supabase/server';
 import { demoMode } from '@/lib/demo-session';
 import { allUsers } from '@/lib/demo-store';
 import CopyLink from '@/components/CopyLink';
-import { sendInvitesNowAction, sendSaturdayNowAction } from '@/app/_actions/invites';
+import { sendInvitesNowAction } from '@/app/_actions/invites';
+import FireSaturdayButton from '@/components/FireSaturdayButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,12 +58,10 @@ export default async function InvitesAdmin() {
           <div className="text-sm text-ink-700/60">
             Sends the grandparent invites <i>and</i> the admin "Helper roundup"
             email (with the WhatsApp share-to-group button + family password).
-            Use this when the Saturday cron didn't fire because of a late deploy.
+            Useful when the Saturday cron didn't fire because of a late deploy.
           </div>
         </div>
-        <form action={sendSaturdayNowAction}>
-          <button className="btn-primary text-sm">Fire Saturday flow</button>
-        </form>
+        <FireSaturdayButton />
       </div>
 
       <div className="card divide-y divide-black/5">

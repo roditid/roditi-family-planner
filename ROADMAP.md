@@ -5,6 +5,30 @@ sessions; updated as items ship.
 
 ## Open
 
+### 0. "Prep for tomorrow" — defer for now
+**Why:** Paula wants to revisit the prep-day flow but not yet. Keep
+the current behavior (evening cron emails Paula at 20:00 IL with the
+prep list + WhatsApp button to forward to Liezel) as-is. Item to
+revisit later if/when Paula wants to upgrade.
+
+**What to build (when revisited):**
+- Prep-day live ping to Liezel via WhatsApp at the time of the event
+  (currently captured as item 11 below — same idea, dependency on
+  Twilio for fully-automated outbound).
+- Maybe surface tomorrow's prep list on /home as a card so anyone who
+  opens the website that evening sees what to pack.
+
+### 0a. Remove the manual "Fire Saturday flow" button after a clean run
+**Why:** It's a nice-to-have escape hatch for the cron-missed case,
+but once you've fired it once and the cron-driven Saturday is reliable,
+the button is admin-page clutter.
+
+**What to do:**
+- Confirm next Saturday's cron fires correctly at 10:00 IL (check
+  /admin/activity that morning).
+- Then delete the button + sendSaturdayNowAction. The grandparent-only
+  "Send invites" button stays — it's still useful for ad-hoc resends.
+
 ### 1. Dedicated kids' Google Calendar (single source of truth)
 **Why:** Paula wants a separate email account for the kids' events so it's
 not mixed into her personal calendar. Every event there is the canonical
