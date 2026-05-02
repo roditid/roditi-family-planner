@@ -20,11 +20,14 @@ export async function sendAdminClaimUpdate(
   try {
     // Suppression window: between Saturday 10:00 IL (when the helper
     // roundup fires) and Sunday 07:00 IL (when the full week recap
-    // lands). Paula doesn't need a play-by-play during the claim
-    // window — she gets a complete picture on Sunday morning.
-    if (isInSuppressionWindow()) return;
+    // lands). In that window we still want admins to know a claim
+    // happened — just without spamming them the full week summary +
+    // Liezel forward button (Liezel gets her own summary on Sunday).
+    const isLite = isInSuppressionWindow();
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://roditi.ch';
-    const summary = await buildFullWeekSummary(sb, householdId);
+    // Skip the expensive summary query when running lite — we don't
+    // include the breakdown in the email anyway.
+    const summary = isLite ? null : await buildFullWeekSummary(sb, householdId);
 
     const { data: members } = await sb
       .from('household_members')
@@ -39,7 +42,7 @@ export async function sendAdminClaimUpdate(
       .map((m: any) => m.profiles)
       .find((p: any) => p && (p.full_name ?? '').toLowerCase().startsWith('liezel'));
     const liezelPhone = (liezel?.phone_number ?? '').replace(/[^\d]/g, '');
-    const waHref = liezelPhone
+    const waHref = !isLite && liezelPhone && summary
       ? `https://wa.me/${liezelPhone}?text=${encodeURIComponent(summary.body)}`
       : null;
 
@@ -50,23 +53,35 @@ export async function sendAdminClaimUpdate(
       ? `${context.actorName} ${verb} ${context.slotLabel}.`
       : `An assignment changed.`;
 
-    const subject = `Pickup update — ${summary.unclaimedCount} of ${summary.totalCount} open`;
-    const html = `<div style="font:15px/1.55 system-ui;color:#2a2a22">` +
-      `<p>${escapeHtml(headline)}</p>` +
-      `<p>Updated week summary below. Open the dashboard:</p>` +
-      `<p><a href="${baseUrl}/home" style="display:inline-block;background:#5C7A5F;color:#FBF6EC;padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:600">${baseUrl.replace(/^https?:\/\//, '')}/home →</a></p>` +
-      `<pre style="background:#f6f3ec;padding:14px;border-radius:8px;font:14px/1.5 system-ui;white-space:pre-wrap;margin-top:1.5em">${escapeHtml(summary.body)}</pre>` +
-      (waHref ? `<p style="margin-top:1.5em"><a href="${waHref}" style="display:inline-block;background:#25D366;color:#fff;padding:12px 18px;border-radius:12px;text-decoration:none;font-weight:600">Forward to Liezel on WhatsApp →</a></p>` : '') +
-      `</div>`;
-    const body = `${headline}\n\nUpdated week summary:\n\n${summary.body}\n\nOpen the dashboard: ${baseUrl}/home` +
-      (waHref ? `\n\nForward to Liezel on WhatsApp:\n${waHref}` : '');
+    const subject = isLite
+      ? `Pickup ${context.action}: ${context.actorName ?? 'someone'} → ${context.slotLabel ?? 'a slot'}`
+      : `Pickup update — ${summary!.unclaimedCount} of ${summary!.totalCount} open`;
+
+    const html = isLite
+      ? `<div style="font:15px/1.55 system-ui;color:#2a2a22">` +
+        `<p>${escapeHtml(headline)}</p>` +
+        `<p style="color:#777;font-size:13px">You'll get the full week summary tomorrow morning in the Sunday recap. This is just a heads-up so you know the assignment changed.</p>` +
+        `<p style="margin-top:1.5em"><a href="${baseUrl}/home" style="display:inline-block;background:#5C7A5F;color:#FBF6EC;padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:600">Open ${baseUrl.replace(/^https?:\/\//, '')}/home →</a></p>` +
+        `</div>`
+      : `<div style="font:15px/1.55 system-ui;color:#2a2a22">` +
+        `<p>${escapeHtml(headline)}</p>` +
+        `<p>Updated week summary below. Open the dashboard:</p>` +
+        `<p><a href="${baseUrl}/home" style="display:inline-block;background:#5C7A5F;color:#FBF6EC;padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:600">${baseUrl.replace(/^https?:\/\//, '')}/home →</a></p>` +
+        `<pre style="background:#f6f3ec;padding:14px;border-radius:8px;font:14px/1.5 system-ui;white-space:pre-wrap;margin-top:1.5em">${escapeHtml(summary!.body)}</pre>` +
+        (waHref ? `<p style="margin-top:1.5em"><a href="${waHref}" style="display:inline-block;background:#25D366;color:#fff;padding:12px 18px;border-radius:12px;text-decoration:none;font-weight:600">Forward to Liezel on WhatsApp →</a></p>` : '') +
+        `</div>`;
+
+    const body = isLite
+      ? `${headline}\n\nYou'll get the full week summary tomorrow morning in the Sunday recap.\n\nOpen the dashboard: ${baseUrl}/home`
+      : `${headline}\n\nUpdated week summary:\n\n${summary!.body}\n\nOpen the dashboard: ${baseUrl}/home` +
+        (waHref ? `\n\nForward to Liezel on WhatsApp:\n${waHref}` : '');
 
     for (const a of admins) {
       await sendAndLog(sb, {
         household_id: householdId,
         to: a.email,
         subject,
-        body: body.replace(/\n\nFamily password.*$/m, ''), // safety: strip legacy password lines
+        body: body.replace(/\n\nFamily password.*$/m, ''),
         html,
       });
     }

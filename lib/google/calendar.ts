@@ -646,8 +646,11 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
 
       // Calendar-driven assignment: if Paula prefixed the event with a
       // helper's name in brackets, ensure that helper is the active
-      // assignment for this slot. We look up the slot we just upserted by
-      // source_event_id, then reconcile the assignment if it doesn't match.
+      // assignment for this slot. Mirrors the manual-claim flow from
+      // /api/slots/[id]/claim — same side effects so the prefix path
+      // doesn't quietly skip the confirmation email, the slot_events
+      // log, the Liezel summary refresh, the admin claim notification,
+      // and the .ics calendar invite.
       if (prefixedHelperId) {
         try {
           const { data: slotRow } = await sb
@@ -674,6 +677,72 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
                 status: 'active',
               });
               await sb.from('pickup_slots').update({ status: 'claimed' }).eq('id', slotRow.id);
+
+              // ── Side effects (same as the manual claim API). Lazy-
+              // imported so we don't tangle calendar.ts with email/log
+              // modules at module-load time.
+              const [{ recordEvent }, { sendLiezelSummaryUpdate }, { sendAdminClaimUpdate }, { renderClaimConfirmation, emailProvider }] = await Promise.all([
+                import('../events'),
+                import('../notify-liezel'),
+                import('../notify-admins'),
+                import('../notify'),
+              ]);
+
+              await recordEvent({
+                householdId,
+                slotId: slotRow.id,
+                actorUserId: prefixedHelperId, // self-claim via title prefix
+                subjectUserId: prefixedHelperId,
+                kind: 'claimed',
+              });
+
+              // Hydrate the slot for the confirmation email + check role
+              // (only admins get the .ics calendar attachment).
+              const { data: hydratedSlot } = await sb
+                .from('pickup_slots')
+                .select(`*, child:children(*), activity:activities(*),
+                  pickup_location:pickup_location_id(*),
+                  via_location:via_location_id(*),
+                  destination_location:destination_location_id(*)`)
+                .eq('id', slotRow.id)
+                .maybeSingle();
+              const { data: claimerProfile } = await sb
+                .from('profiles')
+                .select('full_name, email, email_enabled')
+                .eq('id', prefixedHelperId)
+                .maybeSingle();
+              const { data: claimerMembership } = await sb
+                .from('household_members')
+                .select('role')
+                .eq('household_id', householdId)
+                .eq('user_id', prefixedHelperId)
+                .maybeSingle();
+              const claimerIsAdmin = claimerMembership?.role === 'admin';
+
+              if (hydratedSlot && claimerProfile?.email && claimerProfile?.email_enabled !== false) {
+                const extraIds = (hydratedSlot.additional_child_ids as string[] | null) ?? [];
+                let additional_children: any[] = [];
+                if (extraIds.length > 0) {
+                  const { data: kids } = await sb.from('children').select('*').in('id', extraIds);
+                  additional_children = kids ?? [];
+                }
+                const fullSlot = { ...hydratedSlot, additional_children };
+                const { subject, body, html, attachments } = renderClaimConfirmation(fullSlot as any, claimerProfile.full_name ?? null);
+                await emailProvider.send({
+                  to: claimerProfile.email,
+                  subject, body, html,
+                  attachments: claimerIsAdmin ? attachments : undefined,
+                });
+              }
+
+              await sendLiezelSummaryUpdate(sb, householdId);
+              await sendAdminClaimUpdate(sb, householdId, {
+                actorName: claimerProfile?.full_name?.split(' ')[0] ?? null,
+                action: 'claimed',
+                slotLabel: hydratedSlot
+                  ? `${hydratedSlot.title} ${(hydratedSlot.pickup_time as string).slice(0, 5)} on ${hydratedSlot.date}`
+                  : null,
+              });
             }
           }
         } catch (e) {
