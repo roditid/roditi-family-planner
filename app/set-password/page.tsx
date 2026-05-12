@@ -17,6 +17,7 @@ export default function SetPasswordPage() {
   const router = useRouter();
   const [pw1, setPw1] = useState('');
   const [pw2, setPw2] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -50,26 +51,36 @@ export default function SetPasswordPage() {
         ) : (
           <form onSubmit={onSubmit} className="space-y-3">
             <label className="block">
-              <span className="label mb-1.5 block">New password</span>
+              <span className="label mb-1.5 block flex items-center justify-between">
+                <span>New password</span>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="text-[11px] uppercase tracking-[0.1em] font-semibold text-ink-700/55 hover:text-ink-900"
+                  aria-label={showPassword ? 'Hide passwords' : 'Show passwords'}
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </span>
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 required
                 autoComplete="new-password"
                 value={pw1}
                 onChange={(e) => setPw1(e.target.value)}
-                placeholder="At least 8 characters"
+                placeholder={showPassword ? 'Pick a strong one' : 'At least 8 characters'}
                 className="input text-base"
               />
             </label>
             <label className="block">
               <span className="label mb-1.5 block">Confirm password</span>
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 required
                 autoComplete="new-password"
                 value={pw2}
                 onChange={(e) => setPw2(e.target.value)}
-                placeholder="Type it again"
+                placeholder={showPassword ? 'Type it again' : '••••••••'}
                 className="input text-base"
               />
             </label>

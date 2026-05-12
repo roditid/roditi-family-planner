@@ -24,6 +24,7 @@ function LoginContent() {
   const params = useSearchParams();
   const [email, setEmail] = useState(params.get('email') ?? '');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [sentReset, setSentReset] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -97,15 +98,25 @@ function LoginContent() {
 
             <label className="block">
               <span className="label mb-1.5 block">Password</span>
-              <input
-                type="password"
-                required
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="input text-base"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={showPassword ? 'your password' : '••••••••'}
+                  className="input text-base w-full pr-14"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs uppercase tracking-[0.1em] font-semibold text-ink-700/55 hover:text-ink-900 px-2 py-1 rounded"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
             </label>
 
             <button type="submit" disabled={busy || !email || !password} className="btn-primary w-full py-3.5">
