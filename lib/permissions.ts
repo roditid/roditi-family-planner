@@ -30,15 +30,18 @@ async function _getSessionContext() {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return null;
 
-  const { data: membership } = await sb
-    .from('household_members')
-    .select('household_id, role, helper_kind, households(name, timezone)')
-    .eq('user_id', user.id)
-    .maybeSingle();
+  // membership + profile both look up by user.id — neither depends on
+  // the other, so we fire them in parallel and shave a round-trip.
+  const [{ data: membership }, { data: profile }] = await Promise.all([
+    sb
+      .from('household_members')
+      .select('household_id, role, helper_kind, households(name, timezone)')
+      .eq('user_id', user.id)
+      .maybeSingle(),
+    sb.from('profiles').select('*').eq('id', user.id).single(),
+  ]);
 
   if (!membership) return { user, household: null, role: null as 'admin' | 'helper' | null };
-
-  const { data: profile } = await sb.from('profiles').select('*').eq('id', user.id).single();
 
   return {
     user,

@@ -30,22 +30,24 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
   let anchor = requestedAnchor < todayStart ? new Date() : requestedAnchor;
   const onlyMine = searchParams.only === 'mine';
 
-  // Auto-advance: when the user didn't pin a specific week (?d= absent)
-  // and this week's pickups are all in the past, jump the anchor to
-  // next week. Avoids the empty / all-grayed-out landing state once
-  // the parents have completed the week's schedule.
+  // ── Performance: we used to probe `fetchSlots(thisWeek)` BEFORE the
+  // main batch just to decide whether to auto-advance the anchor by a
+  // week. That cost one extra round-trip every page load. Now we fetch
+  // weekSlots up front (we need it anyway for the "N pickups need a
+  // helper this week" subhead) and reuse it for the auto-advance
+  // decision before kicking off the rest of the queries.
+  const tz = ctx.household?.timezone ?? 'Asia/Jerusalem';
+  const weekStartISO = format(weekStart(new Date()), 'yyyy-MM-dd');
+  const weekEndISO = format(addDays(endOfSchoolWeek(new Date()), 1), 'yyyy-MM-dd');
+  const weekSlots = await fetchSlots(sb, ctx.household!.id, weekStartISO, weekEndISO);
+
   if (!searchParams.d) {
-    const tzCheck = ctx.household?.timezone ?? 'Asia/Jerusalem';
-    const thisWeekDays = daysForView(view, anchor);
-    const thisWeekStart = format(thisWeekDays[0], 'yyyy-MM-dd');
-    const thisWeekEnd = format(addDays(thisWeekDays[thisWeekDays.length - 1], 1), 'yyyy-MM-dd');
-    const probeSlots = await fetchSlots(sb, ctx.household!.id, thisWeekStart, thisWeekEnd);
     const nowMs = Date.now();
-    const stillUpcoming = probeSlots.some((s) => {
-      const slotUtc = fromZonedTime(`${s.date}T${s.pickup_time}`, tzCheck);
+    const stillUpcoming = weekSlots.some((s) => {
+      const slotUtc = fromZonedTime(`${s.date}T${s.pickup_time}`, tz);
       return slotUtc.getTime() > nowMs - 30 * 60 * 1000;
     });
-    if (probeSlots.length > 0 && !stillUpcoming) {
+    if (weekSlots.length > 0 && !stillUpcoming) {
       anchor = addDays(anchor, 7);
     }
   }
@@ -54,26 +56,12 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
   const startISO = format(days[0], 'yyyy-MM-dd');
   const endISO = format(addDays(days[days.length - 1], 1), 'yyyy-MM-dd');
 
-  // Two queries fetched in parallel:
-  //   1. The view's date range — what the calendar actually renders.
-  //   2. THIS week's range (Sun → Thu) — used by the "8 pickups need a
-  //      helper this week" subhead so the count never depends on which
-  //      view is open. fetchSlots is cached per range, so navigating back
-  //      to a previously-rendered range pays no extra cost.
-  const tz = ctx.household?.timezone ?? 'Asia/Jerusalem';
-  const weekStartISO = format(weekStart(new Date()), 'yyyy-MM-dd');
-  const weekEndISO = format(addDays(endOfSchoolWeek(new Date()), 1), 'yyyy-MM-dd');
-
-  // Helpers list is only needed when the viewer is an admin (the modal
-  // renders the reassign dropdown gated on isAdmin). Skip the fetch
-  // otherwise so non-admins don't pay for it.
-  // Admin extras: helper list (drives the inline reassign dropdown) +
-  // pre-built week summary (drives the "Send to Liezel" WhatsApp button
-  // at the bottom of the page) + Liezel's phone number for the wa.me
-  // link. Skipped for non-admin viewers so grandparents don't pay.
-  const [slots, weekSlots, rank, helpers, weekSummary, liezelPhone] = await Promise.all([
+  // Helpers list, week summary, Liezel phone — admin-only extras. Skip
+  // for non-admins so grandparents don't pay. The main `slots` fetch
+  // dedupes with weekSlots above when the view range matches (current
+  // week) — React.cache handles that automatically.
+  const [slots, rank, helpers, weekSummary, liezelPhone] = await Promise.all([
     fetchSlots(sb, ctx.household!.id, startISO, endISO),
-    fetchSlots(sb, ctx.household!.id, weekStartISO, weekEndISO),
     getHelperRank(sb, ctx.household!.id, ctx.user.id),
     ctx.role === 'admin' ? fetchHelpers(sb, ctx.household!.id) : Promise.resolve([]),
     ctx.role === 'admin' ? buildFullWeekSummary(sb, ctx.household!.id) : Promise.resolve(null),
