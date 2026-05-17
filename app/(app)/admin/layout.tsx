@@ -12,6 +12,7 @@ const TABS = [
   { href: '/admin/children', label: 'Children' },
   { href: '/admin/locations', label: 'Locations' },
   { href: '/admin/helpers', label: 'Helpers' },
+  { href: '/admin/documents', label: 'Documents' },
   { href: '/admin/reminders', label: 'Reminders' },
   { href: '/admin/invites', label: 'Invites' },
   { href: '/admin/activity', label: 'Activity' },
