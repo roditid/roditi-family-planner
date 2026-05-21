@@ -134,7 +134,18 @@ function ScheduleLayout({ days, byDay, currentUserId, currentUserPhone, currentU
             </div>
             <div className="space-y-2">
               {todays.map((s) => (
-                <SlotChip key={s.id} slot={s} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} isAdmin={isAdmin} helpers={helpers} householdKids={allKids} density="roomy" />
+                <SlotChip
+                  key={s.id}
+                  slot={s}
+                  currentUserId={currentUserId}
+                  currentUserPhone={currentUserPhone}
+                  currentUserName={currentUserName}
+                  isAdmin={isAdmin}
+                  helpers={helpers}
+                  householdKids={allKids}
+                  mergeCandidates={mergeCandidatesFor(s, todays)}
+                  density="roomy"
+                />
               ))}
             </div>
           </section>
@@ -189,7 +200,18 @@ function ColumnsLayout({
                   <DayDone count={todays.length} />
                 ) : (
                   todays.map((s) => (
-                    <SlotChip key={s.id} slot={s} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} isAdmin={isAdmin} helpers={helpers} householdKids={allKids} density="compact" />
+                    <SlotChip
+                      key={s.id}
+                      slot={s}
+                      currentUserId={currentUserId}
+                      currentUserPhone={currentUserPhone}
+                      currentUserName={currentUserName}
+                      isAdmin={isAdmin}
+                      helpers={helpers}
+                      householdKids={allKids}
+                      mergeCandidates={mergeCandidatesFor(s, todays)}
+                      density="compact"
+                    />
                   ))
                 )}
               </div>
@@ -224,6 +246,23 @@ function EmptyDay() {
   return (
     <div className="rounded-lg border border-dashed border-black/10 px-2 py-3 text-center text-[11px] text-ink-700/40">—</div>
   );
+}
+
+/**
+ * For a given slot S, return the list of OTHER solo Gan→Home slots
+ * on the same day that could be merged into one combined trip. Used
+ * by the modal's "Combine with another pickup" picker. Only auto-
+ * default slots with no additional_children qualify as merge sources
+ * AND merge targets.
+ */
+function mergeCandidatesFor(s: SlotView, daySlots: SlotView[]): { id: string; childName: string; pickupTime: string }[] {
+  const isEligible = (x: SlotView) =>
+    (x as any).source === 'auto-default'
+    && ((x.additional_children?.length ?? 0) === 0);
+  if (!isEligible(s)) return [];
+  return daySlots
+    .filter((x) => x.id !== s.id && isEligible(x))
+    .map((x) => ({ id: x.id, childName: (x as any).child?.name ?? '?', pickupTime: x.pickup_time }));
 }
 
 /** Compact "all done" tile for week-view columns whose pickups have

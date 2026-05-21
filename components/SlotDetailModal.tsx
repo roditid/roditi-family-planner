@@ -12,6 +12,7 @@ import { updateSlotNotesAction } from '@/app/_actions/admin';
 import AssignmentPicker from './AssignmentPicker';
 import SplitCombinedButton from './SplitCombinedButton';
 import SlotEditForm from './SlotEditForm';
+import MergeWithPicker from './MergeWithPicker';
 
 /**
  * Bottom-sheet (mobile) / centered dialog (desktop) showing the full slot
@@ -22,7 +23,7 @@ import SlotEditForm from './SlotEditForm';
  * card) so Paula can drop a one-off reminder onto any pickup at any time.
  */
 export default function SlotDetailModal({
-  slot, currentUserId, currentUserPhone, currentUserName, isAdmin, helpers, householdKids, ownership, pending, claimedBy, err, onClose, onClaim,
+  slot, currentUserId, currentUserPhone, currentUserName, isAdmin, helpers, householdKids, mergeCandidates, ownership, pending, claimedBy, err, onClose, onClaim,
 }: {
   slot: SlotView;
   currentUserId: string;
@@ -34,6 +35,9 @@ export default function SlotDetailModal({
    *  form. Distinct from `allKids` (a local variable below = kids ON
    *  this slot). */
   householdKids?: { id: string; name: string }[];
+  /** Other solo Gan→Home slots on the same day — drives the merge
+   *  picker (admin-only). */
+  mergeCandidates?: { id: string; childName: string; pickupTime: string }[];
   ownership: 'mine' | 'taken' | 'open';
   pending: boolean;
   claimedBy: any;
@@ -215,6 +219,17 @@ export default function SlotDetailModal({
                   <div className="pt-3 border-t border-black/5">
                     <SplitCombinedButton slotId={slot.id} />
                   </div>
+              )}
+              {/* Merge control — solo Gan→Home auto-default + at least
+                  one other solo Gan→Home on the same day to combine with. */}
+              {(slot as any).source === 'auto-default'
+                && ((slot.additional_children?.length ?? 0) === 0)
+                && mergeCandidates
+                && mergeCandidates.length > 0 && (
+                  <MergeWithPicker
+                    currentSlotId={slot.id}
+                    candidates={mergeCandidates}
+                  />
               )}
             </div>
           )}

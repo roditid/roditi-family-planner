@@ -30,6 +30,9 @@ interface Props {
    *  modal's edit form (admin-only). Distinct from the local `allKids`
    *  inside the render (kids ON THIS slot). */
   householdKids?: { id: string; name: string }[];
+  /** Other solo Gan→Home pickups on the SAME day. Drives the modal's
+   *  "Combine with another pickup" picker (admin-only). */
+  mergeCandidates?: { id: string; childName: string; pickupTime: string }[];
 }
 
 type ClaimState = 'mine' | 'taken' | 'open';
@@ -42,7 +45,7 @@ type ClaimState = 'mine' | 'taken' | 'open';
  * server call follows in the background; if it fails we revert and surface
  * a toast. No more 500ms spinner staring contests.
  */
-export default function SlotChip({ slot, currentUserId, currentUserPhone, currentUserName, isAdmin, density = 'roomy', showUnclaim = false, helpers, householdKids }: Props) {
+export default function SlotChip({ slot, currentUserId, currentUserPhone, currentUserName, isAdmin, density = 'roomy', showUnclaim = false, helpers, householdKids, mergeCandidates }: Props) {
   // Derive ownership from the active assignment as the source of truth,
   // not slot.status. The two can drift if a status update is denied
   // (RLS or transient failure) — the assignment row is what actually
@@ -149,6 +152,7 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
       isAdmin={isAdmin}
       helpers={helpers}
       householdKids={householdKids}
+      mergeCandidates={mergeCandidates}
       ownership={ownership} pending={pending}
       claimedBy={claimedBy} err={err}
       onClose={() => setOpen(false)}

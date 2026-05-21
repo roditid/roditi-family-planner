@@ -2,24 +2,12 @@
   "regions": ["fra1"],
   "crons": [
     {
-      "path": "/api/cron/reminders?secret=${CRON_SECRET}",
-      "schedule": "30 4 * * *"
+      "path": "/api/cron/morning?secret=${CRON_SECRET}",
+      "schedule": "0 4 * * *"
     },
     {
-      "path": "/api/cron/saturday-invites?secret=${CRON_SECRET}",
-      "schedule": "0 7 * * 6"
-    },
-    {
-      "path": "/api/cron/sunday-summary?secret=${CRON_SECRET}",
-      "schedule": "0 4 * * 0"
-    },
-    {
-      "path": "/api/cron/backpack?secret=${CRON_SECRET}",
-      "schedule": "0 17 * * *"
-    },
-    {
-      "path": "/api/cron/sync-calendar?secret=${CRON_SECRET}",
-      "schedule": "0 3 * * *"
+      "path": "/api/cron/saturday-morning?secret=${CRON_SECRET}",
+      "schedule": "0 7 * * *"
     }
   ]
 }
