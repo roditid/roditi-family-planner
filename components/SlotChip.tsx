@@ -26,6 +26,10 @@ interface Props {
    *  dropdown so admins can manage helpers from any view, not just
    *  the /admin dashboard. */
   helpers?: { id: string; full_name: string; helper_kind: string | null; role: string }[];
+  /** Every kid in the household — drives the multi-checkbox in the
+   *  modal's edit form (admin-only). Distinct from the local `allKids`
+   *  inside the render (kids ON THIS slot). */
+  householdKids?: { id: string; name: string }[];
 }
 
 type ClaimState = 'mine' | 'taken' | 'open';
@@ -38,7 +42,7 @@ type ClaimState = 'mine' | 'taken' | 'open';
  * server call follows in the background; if it fails we revert and surface
  * a toast. No more 500ms spinner staring contests.
  */
-export default function SlotChip({ slot, currentUserId, currentUserPhone, currentUserName, isAdmin, density = 'roomy', showUnclaim = false, helpers }: Props) {
+export default function SlotChip({ slot, currentUserId, currentUserPhone, currentUserName, isAdmin, density = 'roomy', showUnclaim = false, helpers, householdKids }: Props) {
   // Derive ownership from the active assignment as the source of truth,
   // not slot.status. The two can drift if a status update is denied
   // (RLS or transient failure) — the assignment row is what actually
@@ -144,6 +148,7 @@ export default function SlotChip({ slot, currentUserId, currentUserPhone, curren
       currentUserName={currentUserName}
       isAdmin={isAdmin}
       helpers={helpers}
+      householdKids={householdKids}
       ownership={ownership} pending={pending}
       claimedBy={claimedBy} err={err}
       onClose={() => setOpen(false)}

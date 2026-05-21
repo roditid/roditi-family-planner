@@ -60,13 +60,18 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
   // for non-admins so grandparents don't pay. The main `slots` fetch
   // dedupes with weekSlots above when the view range matches (current
   // week) — React.cache handles that automatically.
-  const [slots, rank, helpers, weekSummary, liezelPhone] = await Promise.all([
+  const [slots, rank, helpers, weekSummary, liezelPhone, allKidsRes] = await Promise.all([
     fetchSlots(sb, ctx.household!.id, startISO, endISO),
     getHelperRank(sb, ctx.household!.id, ctx.user.id),
     ctx.role === 'admin' ? fetchHelpers(sb, ctx.household!.id) : Promise.resolve([]),
     ctx.role === 'admin' ? buildFullWeekSummary(sb, ctx.household!.id) : Promise.resolve(null),
     ctx.role === 'admin' ? fetchLiezelPhone(sb, ctx.household!.id) : Promise.resolve(null),
+    // Drives the edit-form's multi-checkbox for "Other kids on this trip"
+    ctx.role === 'admin'
+      ? sb.from('children').select('id, name').eq('household_id', ctx.household!.id).order('name')
+      : Promise.resolve({ data: [] }),
   ]);
+  const allKids = ((allKidsRes as any).data ?? []) as { id: string; name: string }[];
 
   // "This week" upcoming = today through Thursday, pickup_time hasn't
   // passed by more than 30 min.
@@ -145,6 +150,7 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
         currentUserName={ctx.profile?.full_name ?? null}
         isAdmin={ctx.role === 'admin'}
         helpers={helpers}
+        allKids={allKids}
         onlyMine={onlyMine}
       />
 

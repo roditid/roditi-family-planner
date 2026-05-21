@@ -117,6 +117,53 @@ export async function updateEventTitleForClaim(
   }
 }
 
+/**
+ * Push a slot's new title back to its source Google Calendar event,
+ * preserving any [Helper] prefix that's already on the live event.
+ *
+ * Distinct from updateEventTitleForClaim (which manipulates the prefix
+ * only): this one replaces the BASE title (everything after the prefix)
+ * with whatever the admin typed on the website edit form. Used by
+ * updateSlotAction when title changes.
+ */
+export async function updateEventSummary(
+  sb: SupabaseClient,
+  householdId: string,
+  sourceEventId: string,
+  newBaseTitle: string
+) {
+  try {
+    const { data: ev } = await sb
+      .from('calendar_events')
+      .select('calendar_id, google_event_id, title')
+      .eq('id', sourceEventId)
+      .maybeSingle();
+    if (!ev) return { ok: false, error: 'event not found' };
+
+    // Preserve the "[Helper] " prefix if one is currently on the event.
+    const prefixMatch = (ev.title ?? '').match(/^\s*\[([^\]]+)\]\s*/);
+    const prefix = prefixMatch ? prefixMatch[0] : '';
+    const newTitle = `${prefix}${newBaseTitle}`;
+
+    const { client } = await authorizedClient(sb, householdId);
+    const cal = google.calendar({ version: 'v3', auth: client });
+    await cal.events.patch({
+      calendarId: ev.calendar_id,
+      eventId: ev.google_event_id,
+      sendUpdates: 'none',
+      requestBody: { summary: newTitle },
+    });
+    await sb
+      .from('calendar_events')
+      .update({ title: newTitle, updated_at: new Date().toISOString() })
+      .eq('id', sourceEventId);
+    return { ok: true };
+  } catch (e: any) {
+    console.error('updateEventSummary failed', e?.message ?? e);
+    return { ok: false, error: e?.message ?? 'unknown' };
+  }
+}
+
 /** Best-effort write to notification_events so /admin/activity surfaces
  *  whether the calendar title patch actually worked. Without this, a
  *  failed patch silently rotted the chain (claim succeeds, but the
@@ -675,7 +722,21 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
         prefixedHelperId = m?.user_id ?? null;
       }
 
-      const { error } = await sb.from('pickup_slots').upsert({
+      // Check whether the admin manually edited an existing slot for
+      // this calendar event. If so, preserve their changes instead of
+      // blowing them away on every sync. We still bump
+      // activity_start_time / end_time / location_text in case the
+      // event time moved on Google — those are reference fields, not
+      // user edits — but skip the title, pickup_time, and
+      // additional_child_ids which the edit form may have changed.
+      const { data: existingSlot } = await sb
+        .from('pickup_slots')
+        .select('id, manually_arranged')
+        .eq('source_event_id', eventRow!.id)
+        .maybeSingle();
+      const isManual = !!existingSlot?.manually_arranged;
+
+      const fullPayload = {
         household_id: householdId,
         child_id: primaryChild.id,
         activity_id: match.activity?.id ?? null,
@@ -684,24 +745,36 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
         title: displayTitle,
         date,
         pickup_time: slotPickupTime,
-        // pickupTime here is the calendar event's start (the activity itself);
-        // helpful for the chip + modal to show "Soccer 17:00–18:30" alongside
-        // the helper's earlier Gan-pickup time.
         activity_start_time: pickupTime,
         end_time: endTime,
         pickup_location_id: slotPickupLoc,
         via_location_id: slotViaLoc,
         destination_location_id: slotDestLoc,
-        pickup_location_text: ev.location ?? null,  // preserve raw event location as fallback
+        pickup_location_text: ev.location ?? null,
         via_location_text: slotViaText,
         additional_child_ids: routeAdditionalIds,
         notes: match.activity?.notes ?? null,
         pack_notes: pack_notes || null,
         parent_notes: parent_notes || null,
-        // Special at-Gan activities (Shavuot w/ grandparents, Lag Baomer
-        // picnic, parents day, ceremony) — helper stays the whole time.
         requires_full_presence: isFullPresenceTitle(title),
-      }, { onConflict: 'source_event_id' });
+      };
+      // Manual-edit-safe payload: skip the fields admins commonly edit.
+      const manualSafePayload = {
+        household_id: householdId,
+        source_event_id: eventRow!.id,
+        // Don't overwrite child_id / title / pickup_time / additional_child_ids.
+        activity_start_time: pickupTime,
+        end_time: endTime,
+        pickup_location_text: ev.location ?? null,
+        via_location_text: slotViaText,
+        pack_notes: pack_notes || null,
+        parent_notes: parent_notes || null,
+        requires_full_presence: isFullPresenceTitle(title),
+      };
+      const { error } = await sb.from('pickup_slots').upsert(
+        isManual ? manualSafePayload : fullPayload,
+        { onConflict: 'source_event_id' }
+      );
       if (!error) slotsCreated++;
 
       // Calendar-driven assignment: if Paula prefixed the event with a

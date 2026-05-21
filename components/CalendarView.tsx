@@ -21,6 +21,8 @@ interface Props {
   /** When provided, admin viewers get the inline reassign dropdown
    *  inside each slot's detail modal. */
   helpers?: Helper[];
+  /** Drives the multi-checkbox in the modal's edit form (admin-only). */
+  allKids?: { id: string; name: string }[];
 }
 
 /**
@@ -30,7 +32,7 @@ interface Props {
  *  - 3-day:    three day-columns side-by-side
  *  - week:     seven day-columns side-by-side (horizontal scroll on mobile)
  */
-export default function CalendarView({ view, anchor, slots, currentUserId, currentUserPhone, currentUserName, isAdmin, onlyMine, helpers }: Props) {
+export default function CalendarView({ view, anchor, slots, currentUserId, currentUserPhone, currentUserName, isAdmin, onlyMine, helpers, allKids }: Props) {
   const days = daysForView(view, anchor);
   // Past pickups (30+ min past pickup_time) are filtered out of the
   // schedule + day views so the chip list only shows what's actionable.
@@ -61,8 +63,8 @@ export default function CalendarView({ view, anchor, slots, currentUserId, curre
       <CalendarToolbar view={view} anchor={anchor} rangeLabel={rangeLabel} />
 
       <SwipeArea view={view} anchor={anchor}>
-        {view === 'schedule' && <ScheduleLayout days={days} byDay={byDay} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} isAdmin={isAdmin} helpers={helpers} />}
-        {view === 'day'      && <ScheduleLayout days={days} byDay={byDay} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} isAdmin={isAdmin} helpers={helpers} />}
+        {view === 'schedule' && <ScheduleLayout days={days} byDay={byDay} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} isAdmin={isAdmin} helpers={helpers} allKids={allKids} />}
+        {view === 'day'      && <ScheduleLayout days={days} byDay={byDay} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} isAdmin={isAdmin} helpers={helpers} allKids={allKids} />}
         {view === 'week'     && <ColumnsLayout days={days} byDay={byDay} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} isAdmin={isAdmin} helpers={helpers} cols={7} />}
       </SwipeArea>
 
@@ -99,7 +101,7 @@ export default function CalendarView({ view, anchor, slots, currentUserId, curre
 // Schedule + Day: vertical, day-by-day list
 // ─────────────────────────────────────────────────────────────────────
 
-function ScheduleLayout({ days, byDay, currentUserId, currentUserPhone, currentUserName, isAdmin, helpers }: { days: Date[]; byDay: Map<string, SlotView[]>; currentUserId: string; currentUserPhone?: string | null; currentUserName?: string | null; isAdmin?: boolean; helpers?: Helper[] }) {
+function ScheduleLayout({ days, byDay, currentUserId, currentUserPhone, currentUserName, isAdmin, helpers, allKids }: { days: Date[]; byDay: Map<string, SlotView[]>; currentUserId: string; currentUserPhone?: string | null; currentUserName?: string | null; isAdmin?: boolean; helpers?: Helper[]; allKids?: { id: string; name: string }[] }) {
   // Schedule view: only render days that actually have pickups. The list
   // scrolls forward through the next ~4 weeks; empty Fri/Sat (Israeli weekend)
   // and Picnic-Lag-only days collapse out so the agenda reads tight.
@@ -132,7 +134,7 @@ function ScheduleLayout({ days, byDay, currentUserId, currentUserPhone, currentU
             </div>
             <div className="space-y-2">
               {todays.map((s) => (
-                <SlotChip key={s.id} slot={s} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} isAdmin={isAdmin} helpers={helpers} density="roomy" />
+                <SlotChip key={s.id} slot={s} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} isAdmin={isAdmin} helpers={helpers} householdKids={allKids} density="roomy" />
               ))}
             </div>
           </section>
@@ -148,8 +150,8 @@ function ScheduleLayout({ days, byDay, currentUserId, currentUserPhone, currentU
 // ─────────────────────────────────────────────────────────────────────
 
 function ColumnsLayout({
-  days, byDay, currentUserId, currentUserPhone, currentUserName, isAdmin, helpers, cols,
-}: { days: Date[]; byDay: Map<string, SlotView[]>; currentUserId: string; currentUserPhone?: string | null; currentUserName?: string | null; isAdmin?: boolean; helpers?: Helper[]; cols: 7 }) {
+  days, byDay, currentUserId, currentUserPhone, currentUserName, isAdmin, helpers, allKids, cols,
+}: { days: Date[]; byDay: Map<string, SlotView[]>; currentUserId: string; currentUserPhone?: string | null; currentUserName?: string | null; isAdmin?: boolean; helpers?: Helper[]; allKids?: { id: string; name: string }[]; cols: 7 }) {
   // Week: keeps 7 cols viable but each is a real card with route + status.
   const minColWidth = 150;
   // Past = pickup time more than 30 min ago in IL local time. Used to
@@ -187,7 +189,7 @@ function ColumnsLayout({
                   <DayDone count={todays.length} />
                 ) : (
                   todays.map((s) => (
-                    <SlotChip key={s.id} slot={s} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} isAdmin={isAdmin} helpers={helpers} density="compact" />
+                    <SlotChip key={s.id} slot={s} currentUserId={currentUserId} currentUserPhone={currentUserPhone} currentUserName={currentUserName} isAdmin={isAdmin} helpers={helpers} householdKids={allKids} density="compact" />
                   ))
                 )}
               </div>

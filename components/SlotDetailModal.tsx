@@ -11,6 +11,7 @@ import HelperAvatar from './HelperAvatar';
 import { updateSlotNotesAction } from '@/app/_actions/admin';
 import AssignmentPicker from './AssignmentPicker';
 import SplitCombinedButton from './SplitCombinedButton';
+import SlotEditForm from './SlotEditForm';
 
 /**
  * Bottom-sheet (mobile) / centered dialog (desktop) showing the full slot
@@ -21,7 +22,7 @@ import SplitCombinedButton from './SplitCombinedButton';
  * card) so Paula can drop a one-off reminder onto any pickup at any time.
  */
 export default function SlotDetailModal({
-  slot, currentUserId, currentUserPhone, currentUserName, isAdmin, helpers, ownership, pending, claimedBy, err, onClose, onClaim,
+  slot, currentUserId, currentUserPhone, currentUserName, isAdmin, helpers, householdKids, ownership, pending, claimedBy, err, onClose, onClaim,
 }: {
   slot: SlotView;
   currentUserId: string;
@@ -29,6 +30,10 @@ export default function SlotDetailModal({
   currentUserName?: string | null;
   isAdmin?: boolean;
   helpers?: { id: string; full_name: string; helper_kind: string | null; role: string }[];
+  /** All kids in the household — drives the multi-checkbox in the edit
+   *  form. Distinct from `allKids` (a local variable below = kids ON
+   *  this slot). */
+  householdKids?: { id: string; name: string }[];
   ownership: 'mine' | 'taken' | 'open';
   pending: boolean;
   claimedBy: any;
@@ -212,6 +217,16 @@ export default function SlotDetailModal({
                   </div>
               )}
             </div>
+          )}
+
+          {/* Full edit form — title, pickup time, end time, kids on the
+              trip, delete. Collapsed by default so the modal stays
+              clean. Admin-only. */}
+          {isAdmin && householdKids && householdKids.length > 0 && (
+            <SlotEditForm
+              slot={slot as any}
+              allKids={householdKids}
+            />
           )}
 
           {/* Status row — only show for 'taken' or 'open' ('mine' has the banner above) */}

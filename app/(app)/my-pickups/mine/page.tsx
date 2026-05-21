@@ -27,11 +27,15 @@ export default async function MyMinePage() {
   const today = new Date();
   const startISO = format(today, 'yyyy-MM-dd');
   const endISO = format(addDays(today, 42), 'yyyy-MM-dd');  // 6 weeks
-  const [all, rank, helpers] = await Promise.all([
+  const [all, rank, helpers, allKidsRes] = await Promise.all([
     fetchSlots(sb, ctx.household!.id, startISO, endISO),
     getHelperRank(sb, ctx.household!.id, ctx.user.id),
     ctx.role === 'admin' ? fetchHelpers(sb, ctx.household!.id) : Promise.resolve([]),
+    ctx.role === 'admin'
+      ? sb.from('children').select('id, name').eq('household_id', ctx.household!.id).order('name')
+      : Promise.resolve({ data: [] }),
   ]);
+  const allKids = ((allKidsRes as any).data ?? []) as { id: string; name: string }[];
 
   // Mine = every slot whose active assignment is to me, today or later.
   const mine = all
@@ -109,6 +113,7 @@ export default async function MyMinePage() {
                       currentUserName={ctx.profile?.full_name ?? null}
                       isAdmin={ctx.role === 'admin'}
                       helpers={helpers}
+                      householdKids={allKids}
                       density="roomy"
                       showUnclaim
                     />
