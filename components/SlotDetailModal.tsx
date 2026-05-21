@@ -10,6 +10,7 @@ import ChildAvatar from './ChildAvatar';
 import HelperAvatar from './HelperAvatar';
 import { updateSlotNotesAction } from '@/app/_actions/admin';
 import AssignmentPicker from './AssignmentPicker';
+import SplitCombinedButton from './SplitCombinedButton';
 
 /**
  * Bottom-sheet (mobile) / centered dialog (desktop) showing the full slot
@@ -190,15 +191,26 @@ export default function SlotDetailModal({
               week, mine) so Paula doesn't have to bounce to /admin to flip
               an assignment. Hidden for non-admins. */}
           {isAdmin && helpers && helpers.length > 0 && (
-            <div className="rounded-xl bg-cream-200/40 p-3.5">
-              <div className="text-[10px] uppercase tracking-wider text-ink-700/55 font-semibold mb-2">
-                Assign helper
+            <div className="rounded-xl bg-cream-200/40 p-3.5 space-y-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-ink-700/55 font-semibold mb-2">
+                  Assign helper
+                </div>
+                <AssignmentPicker
+                  slotId={slot.id}
+                  currentUserId={slot.assignment?.assigned_to_user_id ?? null}
+                  helpers={helpers}
+                />
               </div>
-              <AssignmentPicker
-                slotId={slot.id}
-                currentUserId={slot.assignment?.assigned_to_user_id ?? null}
-                helpers={helpers}
-              />
+              {/* Split control — only meaningful on combined Gan→Home
+                  auto-defaults (i.e., source='auto-default' AND has
+                  additional kids). Activity slots can't be split. */}
+              {(slot as any).source === 'auto-default'
+                && ((slot.additional_children?.length ?? 0) > 0) && (
+                  <div className="pt-3 border-t border-black/5">
+                    <SplitCombinedButton slotId={slot.id} />
+                  </div>
+              )}
             </div>
           )}
 

@@ -78,37 +78,69 @@ export async function updateEventTitleForClaim(
   helperFirstName: string | null
 ) {
   try {
-    // Look up the calendar event row so we know which Google calendar to call.
     const { data: ev } = await sb
       .from('calendar_events')
       .select('calendar_id, google_event_id, title')
       .eq('id', sourceEventId)
       .maybeSingle();
-    if (!ev) return { ok: false, error: 'event not found' };
+    if (!ev) {
+      await logCalendarTitleEvent(sb, householdId, 'failed', helperFirstName, sourceEventId, 'calendar_events row not found');
+      return { ok: false, error: 'event not found' };
+    }
 
     const baseTitle = (ev.title ?? '').replace(/^\[[^\]]+\]\s*/, '');
     const newTitle = helperFirstName ? `[${helperFirstName}] ${baseTitle}` : baseTitle;
 
     const { client } = await authorizedClient(sb, householdId);
     const cal = google.calendar({ version: 'v3', auth: client });
+    // sendUpdates: 'none' so Google doesn't email all existing attendees
+    // every time the title changes (e.g., when Tataia claims, Paula
+    // shouldn't get a "calendar event updated" email).
     await cal.events.patch({
       calendarId: ev.calendar_id,
       eventId: ev.google_event_id,
+      sendUpdates: 'none',
       requestBody: { summary: newTitle },
     });
 
-    // Mirror the new title onto our calendar_events row so future syncs
-    // start from the updated baseline.
     await sb
       .from('calendar_events')
       .update({ title: newTitle, updated_at: new Date().toISOString() })
       .eq('id', sourceEventId);
 
+    await logCalendarTitleEvent(sb, householdId, 'sent', helperFirstName, sourceEventId, newTitle);
     return { ok: true, title: newTitle };
   } catch (e: any) {
     console.error('updateEventTitleForClaim failed', e?.message ?? e);
+    await logCalendarTitleEvent(sb, householdId, 'failed', helperFirstName, sourceEventId, e?.message ?? 'unknown');
     return { ok: false, error: e?.message ?? 'unknown' };
   }
+}
+
+/** Best-effort write to notification_events so /admin/activity surfaces
+ *  whether the calendar title patch actually worked. Without this, a
+ *  failed patch silently rotted the chain (claim succeeds, but the
+ *  source calendar event title never changes). */
+async function logCalendarTitleEvent(
+  sb: SupabaseClient,
+  householdId: string,
+  status: 'sent' | 'failed',
+  helperFirstName: string | null,
+  sourceEventId: string,
+  detail: string
+) {
+  try {
+    const { logNotification } = await import('../notify-log');
+    await logNotification(sb, {
+      household_id: householdId,
+      kind: status === 'sent' ? 'calendar_title_updated' : 'calendar_title_failed',
+      channel: 'google_calendar',
+      recipient: helperFirstName ?? '(strip prefix)',
+      subject: detail,
+      status,
+      error: status === 'failed' ? detail : null,
+    });
+  } catch {/* swallow */}
 }
 
 /**

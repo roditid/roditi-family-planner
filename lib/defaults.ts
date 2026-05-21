@@ -120,22 +120,25 @@ export async function generateDefaultSlots(
 
   // 3. Wipe unclaimed auto-defaults so we can regenerate cleanly.
   //    Claimed defaults are preserved — see step 4 for how we skip
-  //    re-creating them on dates where one already exists.
+  //    re-creating them on dates where one already exists. Also
+  //    preserve any auto-defaults the admin has manually arranged
+  //    (split/merged combos) — the manually_arranged flag opts a row
+  //    out of the regeneration sweep entirely.
   await sb
     .from('pickup_slots')
     .delete()
     .eq('household_id', householdId)
     .eq('source', 'auto-default')
     .eq('status', 'unclaimed')
+    .eq('manually_arranged', false)
     .gte('date', start)
     .lt('date', end);
 
-  // 3b. Build a per-date set of kids already covered by a claimed
-  //     auto-default. Step 3 deleted unclaimed ones, so what remains is
-  //     guaranteed to be claimed. We exclude these kids from the
-  //     candidate list below — but we DON'T skip the whole date, so a
-  //     claimed Liam-12:30 doesn't prevent Yali+Adam from getting their
-  //     own combined 16:00 trip on the same day.
+  // 3b. Build a per-date set of kids already covered by a surviving
+  //     auto-default row. Step 3 deleted unclaimed-AND-not-manually-
+  //     arranged ones, so what remains is either claimed OR admin-
+  //     pinned via the split/merge UI. Either way, those kids are
+  //     already accounted for and we shouldn't regenerate them.
   const { data: existing } = await sb
     .from('pickup_slots')
     .select('date, child_id, additional_child_ids')

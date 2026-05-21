@@ -105,9 +105,18 @@ export async function buildFullWeekSummary(
   sb: SupabaseClient,
   householdId: string
 ): Promise<{ subject: string; body: string; unclaimedCount: number; totalCount: number }> {
+  // Range: today → this week's Saturday inclusive. Means a Wednesday
+  // send covers Wed/Thu/Fri/Sat (4 days), a Sunday send covers the
+  // full Sun→Sat (7 days), a Saturday send is Saturday only (1 day).
+  // Avoids the previous "today + 8 days" rolling window which double-
+  // counted the starting day of the next week.
   const today = new Date();
+  const dow = today.getDay(); // 0=Sun .. 6=Sat
+  const daysUntilSat = (6 - dow + 7) % 7;
+  const saturday = addDays(today, daysUntilSat);
   const startISO = format(today, 'yyyy-MM-dd');
-  const endISO = format(addDays(today, 8), 'yyyy-MM-dd');
+  // fetchSlots end is exclusive; +1 day so Saturday is included.
+  const endISO = format(addDays(saturday, 1), 'yyyy-MM-dd');
   const slots = await fetchSlots(sb, householdId, startISO, endISO);
   const sorted = [...slots].sort((a, b) => (a.date + a.pickup_time).localeCompare(b.date + b.pickup_time));
   const unclaimed = slots.filter((s) => s.status === 'unclaimed');
