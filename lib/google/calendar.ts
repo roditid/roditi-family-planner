@@ -445,6 +445,13 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
     }
   }
 
+  // Tracks every google_event_id we see across all calendars in this
+  // sync pass. After the loop, any calendar_events row in the time
+  // window whose google_event_id isn't in this set was deleted on
+  // Google's side — we remove it (and its slot) so the website reflects
+  // the deletion.
+  const seenGoogleEventIds = new Set<string>();
+
   for (const calId of calIds.length ? calIds : ['primary']) {
     const res = await cal.events.list({
       calendarId: calId,
@@ -458,6 +465,10 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
     const childNames = (children ?? []).map((c) => c.name);
 
     for (const ev of events) {
+      // Record presence BEFORE filtering. If a previously-imported event
+      // matches the include/exclude filter today, we still don't want
+      // to delete it — the user simply changed their filter.
+      if (ev.id) seenGoogleEventIds.add(ev.id);
       const title = ev.summary ?? '(untitled)';
 
       // Special markers (no-gan, gan-until-HH:MM, prep-day, last-day) are
@@ -906,13 +917,68 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
     }
   }
 
+  // ── Detect deletions on Google's side ──
+  // Pull every calendar_events row this household has in the sync window.
+  // Any whose google_event_id wasn't seen during the loop above is an
+  // event Paula deleted from Google Calendar. Remove the corresponding
+  // pickup_slot (so the website reflects the deletion) and the
+  // calendar_events row itself.
+  let slotsDeleted = 0;
+  let eventsDeleted = 0;
+  try {
+    const { data: dbEvents } = await sb
+      .from('calendar_events')
+      .select('id, google_event_id, title')
+      .eq('household_id', householdId)
+      .gte('start_at', timeMin)
+      .lt('start_at', timeMax);
+
+    const orphans = (dbEvents ?? []).filter(
+      (e: any) => e.google_event_id && !seenGoogleEventIds.has(e.google_event_id)
+    );
+
+    if (orphans.length > 0) {
+      const orphanIds = orphans.map((e: any) => e.id);
+      // Pull the slot ids so we can drop their active assignments first
+      // (FK from slot_assignments.pickup_slot_id may not cascade).
+      const { data: orphanSlots } = await sb
+        .from('pickup_slots')
+        .select('id')
+        .in('source_event_id', orphanIds);
+      const orphanSlotIds = (orphanSlots ?? []).map((s: any) => s.id);
+      if (orphanSlotIds.length > 0) {
+        await sb.from('slot_assignments').delete().in('pickup_slot_id', orphanSlotIds);
+        await sb.from('pickup_slots').delete().in('id', orphanSlotIds);
+        slotsDeleted = orphanSlotIds.length;
+      }
+      await sb.from('calendar_events').delete().in('id', orphanIds);
+      eventsDeleted = orphanIds.length;
+
+      // Log to the activity feed so admins see what disappeared.
+      try {
+        const { logNotification } = await import('../notify-log');
+        for (const o of orphans) {
+          await logNotification(sb, {
+            household_id: householdId,
+            kind: 'calendar_title_updated' as any,
+            channel: 'google_calendar',
+            recipient: '(deleted)',
+            subject: `Event deleted from Google: ${(o as any).title ?? '(no title)'}`,
+          });
+        }
+      } catch {/* swallow */}
+    }
+  } catch (e: any) {
+    console.error('orphan cleanup failed', e?.message ?? e);
+  }
+
   await sb.from('connected_calendars').update({
     last_sync_at: new Date().toISOString(),
-    last_sync_status: `ok — ${eventsSeen} events, ${slotsCreated} slots`,
+    last_sync_status: `ok — ${eventsSeen} events, ${slotsCreated} slots${eventsDeleted ? `, ${eventsDeleted} deleted` : ''}`,
     last_sync_error: null,
   }).eq('id', conn.id);
 
-  return { eventsSeen, slotsCreated };
+  return { eventsSeen, slotsCreated, slotsDeleted, eventsDeleted };
 }
 
 function matches(title: string, kw: string) {
