@@ -4,7 +4,13 @@
     {
       "name": "pickup-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "-p", "3001"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "-p",
+        "3001"
+      ],
       "port": 3001,
       "cwd": "/Users/dani/Claude Code/Pickup Planner"
     }

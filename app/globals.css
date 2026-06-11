@@ -57,6 +57,22 @@ button, a { touch-action: manipulation; }
     @apply w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-base outline-none transition-all duration-150
            focus:border-sage-500 focus:ring-2 focus:ring-sage-500/20;
   }
+  /* Loading skeleton block — warm tint instead of generic grey so the
+     shimmer feels like part of the cream palette, not a Facebook ghost. */
+  .skeleton {
+    @apply rounded-xl bg-ink-900/[0.05] relative overflow-hidden;
+  }
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0;
+    background: linear-gradient(90deg, transparent, rgba(251, 246, 236, 0.7), transparent);
+    animation: pp-shimmer 1.6s infinite;
+  }
+}
+
+@keyframes pp-shimmer {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
 }
 
 /* Entrance animations — used to give the schedule view a sense of the

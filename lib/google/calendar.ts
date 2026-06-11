@@ -380,9 +380,29 @@ export async function addAttendeeToEvent(
  * Pull events for the next `days` days across all selected calendars,
  * store them in calendar_events, and generate/refresh pickup_slots.
  *
- * Returns counts for the admin UI.
+ * Returns counts for the admin UI. On failure, writes the error onto
+ * connected_calendars.last_sync_error (so the admin page + the /home
+ * banner can surface it) and re-throws.
  */
 export async function syncCalendar(sb: SupabaseClient, householdId: string, days = 21) {
+  try {
+    return await _syncCalendarInner(sb, householdId, days);
+  } catch (e: any) {
+    const message = e?.message ?? String(e);
+    // Best-effort: persist the failure so the UI can show a "calendar
+    // broken" banner. Previously last_sync_error was only ever CLEARED,
+    // so a dead connection looked healthy on /admin/calendar for days.
+    try {
+      await sb.from('connected_calendars').update({
+        last_sync_error: message,
+        last_sync_status: `failed — ${message}`,
+      }).eq('household_id', householdId);
+    } catch { /* swallow */ }
+    throw e;
+  }
+}
+
+async function _syncCalendarInner(sb: SupabaseClient, householdId: string, days = 21) {
   const { client, conn } = await authorizedClient(sb, householdId);
   const cal = google.calendar({ version: 'v3', auth: client });
   const calIds: string[] = Array.isArray(conn.selected_calendar_ids)
@@ -960,7 +980,7 @@ export async function syncCalendar(sb: SupabaseClient, householdId: string, days
         for (const o of orphans) {
           await logNotification(sb, {
             household_id: householdId,
-            kind: 'calendar_title_updated' as any,
+            kind: 'calendar_event_deleted',
             channel: 'google_calendar',
             recipient: '(deleted)',
             subject: `Event deleted from Google: ${(o as any).title ?? '(no title)'}`,

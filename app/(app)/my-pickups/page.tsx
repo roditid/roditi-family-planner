@@ -60,7 +60,7 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
   // for non-admins so grandparents don't pay. The main `slots` fetch
   // dedupes with weekSlots above when the view range matches (current
   // week) — React.cache handles that automatically.
-  const [slots, rank, helpers, weekSummary, liezelPhone, allKidsRes] = await Promise.all([
+  const [slots, rank, helpers, weekSummary, liezelPhone, allKidsRes, calHealthRes] = await Promise.all([
     fetchSlots(sb, ctx.household!.id, startISO, endISO),
     getHelperRank(sb, ctx.household!.id, ctx.user.id),
     ctx.role === 'admin' ? fetchHelpers(sb, ctx.household!.id) : Promise.resolve([]),
@@ -70,8 +70,15 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
     ctx.role === 'admin'
       ? sb.from('children').select('id, name').eq('household_id', ctx.household!.id).order('name')
       : Promise.resolve({ data: [] }),
+    // Calendar health — admins see a banner when the last sync failed
+    // (e.g. Google revoked access) so a dead connection can't go
+    // unnoticed for days again.
+    ctx.role === 'admin'
+      ? sb.from('connected_calendars').select('last_sync_error').eq('household_id', ctx.household!.id).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
   const allKids = ((allKidsRes as any).data ?? []) as { id: string; name: string }[];
+  const calendarSyncError: string | null = (calHealthRes as any).data?.last_sync_error ?? null;
 
   // "This week" upcoming = today through Thursday, pickup_time hasn't
   // passed by more than 30 min.
@@ -122,6 +129,27 @@ export default async function MyPickupsPage({ searchParams }: { searchParams: { 
           </p>
         </div>
       </header>
+
+      {/* Calendar-broken banner — admin-only. Shows whenever the last
+          sync failed so a revoked Google connection can't rot silently.
+          (The morning cron also emails admins, but this catches anyone
+          who opens the site before reading email.) */}
+      {ctx.role === 'admin' && calendarSyncError && (
+        <div className="rounded-2xl bg-coral-400/12 border border-coral-400/35 px-4 py-3.5 flex items-start gap-3">
+          <span className="text-xl leading-none mt-0.5">⚠️</span>
+          <div className="flex-1 min-w-0 text-sm">
+            <div className="font-semibold text-coral-700">Calendar connection broken — pickups are not syncing</div>
+            <div className="text-ink-700/70 mt-0.5">
+              {/invalid_grant/i.test(calendarSyncError)
+                ? 'Google revoked the calendar access. Reconnect to resume syncing.'
+                : `Last sync failed: ${calendarSyncError}`}
+            </div>
+          </div>
+          <Link href="/admin/calendar" className="shrink-0 self-center rounded-xl bg-coral-400 hover:bg-coral-500 text-white text-sm font-semibold px-4 py-2 transition active:scale-[0.97]">
+            Fix it →
+          </Link>
+        </div>
+      )}
 
       {/* Filter toggle (only useful when there's something to filter) */}
       {(myCount > 0) && (

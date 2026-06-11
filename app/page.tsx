@@ -7,7 +7,7 @@ import { allUsers } from '@/lib/demo-store';
 
 export const dynamic = 'force-dynamic';
 
-type Person = { id: string; full_name: string; email: string | null; helper_kind: string | null; magic_slug: string | null; role: 'admin' | 'helper' };
+type Person = { id: string; full_name: string; email: string | null; helper_kind: string | null; magic_slug: string | null; photo_url: string | null; role: 'admin' | 'helper' };
 
 export default async function Landing() {
   // Auto-redirect signed-in users to their role-appropriate landing.
@@ -28,7 +28,7 @@ export default async function Landing() {
   if (demoMode()) {
     members = allUsers().map((u: any) => ({
       id: u.id, full_name: u.full_name, email: u.email, helper_kind: u.helper_kind,
-      magic_slug: u.magic_slug ?? null, role: u.role,
+      magic_slug: u.magic_slug ?? null, photo_url: u.photo_url ?? null, role: u.role,
     }));
   } else {
     const admin = supabaseAdmin();
@@ -36,7 +36,7 @@ export default async function Landing() {
     if (hh) {
       const { data } = await admin
         .from('household_members')
-        .select('role, helper_kind, profiles:user_id(id, full_name, email, magic_slug)')
+        .select('role, helper_kind, profiles:user_id(id, full_name, email, magic_slug, photo_url)')
         .eq('household_id', hh.id);
       members = (data ?? []).map((m: any) => ({ ...m.profiles, helper_kind: m.helper_kind, role: m.role }));
     }
@@ -126,13 +126,21 @@ function HelperCard({ h }: { h: Person }) {
   // verifyOtp weren't being applied before the next-page render.
   const href = h.magic_slug ? `/${h.magic_slug}` : '/login';
   const first = (h.full_name ?? '').replace(/\(.*?\)/g, '').trim().split(/\s+/)[0] || h.full_name;
+  // Photo: prefer the profile's photo_url; fall back to the conventional
+  // /helpers/{slug}.jpg path; initials only if neither resolves at render.
+  const photo = h.photo_url ?? (h.magic_slug ? `/helpers/${h.magic_slug}.jpg` : null);
   return (
     <a
       href={href}
       className="card flex flex-col items-center text-center p-4 hover:border-sage-500/40 hover:shadow-cardHover active:scale-[0.97] transition-all duration-150"
     >
-      <div className="h-14 w-14 rounded-full bg-sage-500/15 text-sage-700 grid place-items-center font-semibold text-2xl mb-2">
-        {first.slice(0, 1)}
+      <div className="h-16 w-16 rounded-full overflow-hidden bg-sage-500/15 text-sage-700 grid place-items-center font-semibold text-2xl mb-2 ring-2 ring-cream-50 shadow-sm">
+        {photo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={photo} alt={first} className="w-full h-full object-cover" style={{ objectPosition: '50% 30%' }} />
+        ) : (
+          first.slice(0, 1)
+        )}
       </div>
       <div className="font-medium text-base leading-tight">{first}</div>
       {h.full_name !== first && (

@@ -87,7 +87,7 @@ export async function uploadDocumentAction(formData: FormData) {
   // Log to the activity feed so there's an audit trail of doc uploads.
   await logNotification(sb, {
     household_id: ctx.household!.id,
-    kind: 'wa_link_built' as any, // not a real WA event but reusing kind slot
+    kind: 'document_uploaded',
     channel: 'email',
     recipient: '-',
     subject: `Document uploaded: ${label}`,
@@ -117,7 +117,7 @@ export async function deleteDocumentAction(formData: FormData) {
 
   await logNotification(sb, {
     household_id: ctx.household!.id,
-    kind: 'wa_link_built' as any,
+    kind: 'document_deleted',
     channel: 'email',
     recipient: '-',
     subject: `Document deleted: ${doc.label}`,

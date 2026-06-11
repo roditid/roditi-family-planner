@@ -16,6 +16,8 @@ export type NotificationKind =
   | 'email_sent' | 'email_failed'
   | 'calendar_invite' | 'calendar_invite_failed'
   | 'calendar_title_updated' | 'calendar_title_failed'
+  | 'calendar_event_deleted'
+  | 'document_uploaded' | 'document_deleted'
   | 'wa_link_built' | 'wa_link_tapped';
 
 export type NotificationChannel = 'email' | 'google_calendar' | 'whatsapp';

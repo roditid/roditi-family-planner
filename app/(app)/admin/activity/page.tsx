@@ -134,6 +134,9 @@ function KindChip({ kind, status }: { kind: string; status: string | null }) {
     email_sent:             'bg-black/[0.06] text-ink-700',
     calendar_invite:        'bg-sage-500/10 text-sage-700',
     calendar_title_updated: 'bg-sage-500/10 text-sage-700',
+    calendar_event_deleted: 'bg-coral-400/15 text-coral-700',
+    document_uploaded:      'bg-[#C5A462]/20 text-[#8a6f35]',
+    document_deleted:       'bg-coral-400/15 text-coral-700',
     wa_link_built:          'bg-[#25D366]/15 text-[#1a8c44]',
     wa_link_tapped:         'bg-[#25D366]/25 text-[#1a8c44]',
   };
